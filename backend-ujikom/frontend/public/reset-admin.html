@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reset Admin Session - GOMOMENT</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .btn { background: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #5a67d8; }
+        .success { color: #22c55e; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .info { background: #e0f2fe; padding: 15px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Reset Admin Session - GOMOMENT</h1>
+        
+        <div class="info">
+            <strong>Masalah:</strong> Halaman admin tidak bisa diakses, layar gelap transparan, notifikasi change password.
+        </div>
+
+        <h3>📋 Current Session Info:</h3>
+        <div id="sessionInfo"></div>
+
+        <h3>🛠️ Reset Actions:</h3>
+        <button class="btn" onclick="clearLocalStorage()">Clear LocalStorage</button>
+        <button class="btn" onclick="clearSessionStorage()">Clear SessionStorage</button>
+        <button class="btn" onclick="clearAllData()">Clear All Data</button>
+        <button class="btn" onclick="setMockAdmin()">Set Mock Admin</button>
+        <button class="btn" onclick="checkBackend()">Check Backend</button>
+
+        <h3>📊 Results:</h3>
+        <div id="results"></div>
+
+        <h3>🔗 Quick Links:</h3>
+        <a href="/login" class="btn">Go to Login</a>
+        <a href="/admin" class="btn">Try Admin Panel</a>
+        <a href="/" class="btn">Go to Home</a>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+        }
+
+        function displaySessionInfo() {
+            const info = document.getElementById('sessionInfo');
+            const authToken = localStorage.getItem('auth_token');
+            const userData = localStorage.getItem('user');
+            const lastActivity = localStorage.getItem('last_activity');
+            
+            info.innerHTML = `
+                <p><strong>Auth Token:</strong> ${authToken ? '✅ Present' : '❌ Missing'}</p>
+                <p><strong>User Data:</strong> ${userData ? '✅ Present' : '❌ Missing'}</p>
+                <p><strong>Last Activity:</strong> ${lastActivity || '❌ Not Set'}</p>
+                ${userData ? `<p><strong>User Info:</strong> <code>${userData}</code></p>` : ''}
+            `;
+        }
+
+        function clearLocalStorage() {
+            localStorage.clear();
+            log('✅ LocalStorage cleared successfully', 'success');
+            displaySessionInfo();
+        }
+
+        function clearSessionStorage() {
+            sessionStorage.clear();
+            log('✅ SessionStorage cleared successfully', 'success');
+        }
+
+        function clearAllData() {
+            localStorage.clear();
+            sessionStorage.clear();
+            // Clear cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            log('✅ All browser data cleared successfully', 'success');
+            displaySessionInfo();
+        }
+
+        function setMockAdmin() {
+            const mockUser = {
+                id: 1,
+                name: 'Admin Utama',
+                email: 'admin@gomoment.com',
+                role: 'admin',
+                avatar: null,
+                created_at: new Date().toISOString()
+            };
+            
+            const mockToken = 'mock_admin_token_' + Date.now();
+            
+            localStorage.setItem('auth_token', mockToken);
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            localStorage.setItem('last_activity', Date.now().toString());
+            
+            log('✅ Mock admin session created successfully', 'success');
+            log(`👤 Admin: ${mockUser.name} (${mockUser.email})`, 'info');
+            displaySessionInfo();
+        }
+
+        async function checkBackend() {
+            try {
+                log('🔍 Checking backend connection...', 'info');
+                
+                // Check if backend is running
+                const response = await fetch('http://localhost:8000/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Backend is running: ' + JSON.stringify(data), 'success');
+                } else {
+                    log('⚠️ Backend responded with status: ' + response.status, 'error');
+                }
+            } catch (error) {
+                log('❌ Backend connection failed: ' + error.message, 'error');
+                log('💡 Make sure XAMPP is running and backend server is started', 'info');
+            }
+        }
+
+        // Initialize
+        displaySessionInfo();
+        log('🚀 Admin Reset Tool loaded successfully', 'success');
+    </script>
+</body>
+</html>

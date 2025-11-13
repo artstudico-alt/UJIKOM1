@@ -1,0 +1,33 @@
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#9c27b0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2196f3;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Icon Circle -->
+  <circle cx="25" cy="30" r="18" fill="url(#iconGradient)" />
+  
+  <!-- Event Icon -->
+  <rect x="18" y="22" width="14" height="10" rx="2" fill="white" opacity="0.9"/>
+  <rect x="20" y="18" width="2" height="6" fill="white" opacity="0.7"/>
+  <rect x="28" y="18" width="2" height="6" fill="white" opacity="0.7"/>
+  <circle cx="22" cy="27" r="1.5" fill="url(#iconGradient)"/>
+  <circle cx="28" cy="27" r="1.5" fill="url(#iconGradient)"/>
+  
+  <!-- Text GOMOMENT -->
+  <text x="50" y="25" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="url(#logoGradient)">
+    GOMOMENT
+  </text>
+  
+  <!-- Tagline -->
+  <text x="50" y="40" font-family="Arial, sans-serif" font-size="8" fill="#666" opacity="0.8">
+    EVENT MANAGEMENT PLATFORM
+  </text>
+</svg>

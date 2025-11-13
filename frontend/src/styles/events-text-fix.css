@@ -1,0 +1,219 @@
+/* Force override text colors for Events page - TARGETING REAL CSS CLASSES */
+/* Target the actual Material-UI classes from the HTML */
+.MuiTypography-h3.css-1sx1y1f-MuiTypography-root,
+.MuiTypography-h3.css-1sx1y1f-MuiTypography-root *,
+.MuiTypography-h3.css-1sx1y1f-MuiTypography-root span,
+.MuiTypography-h3.css-1sx1y1f-MuiTypography-root div,
+.MuiTypography-h3.css-1sx1y1f-MuiTypography-root p {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: bold !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.MuiTypography-h6.css-w6h2iw-MuiTypography-root,
+.MuiTypography-h6.css-w6h2iw-MuiTypography-root *,
+.MuiTypography-h6.css-w6h2iw-MuiTypography-root span,
+.MuiTypography-h6.css-w6h2iw-MuiTypography-root div,
+.MuiTypography-h6.css-w6h2iw-MuiTypography-root p {
+  color: #1976d2 !important;
+  -webkit-text-fill-color: #1976d2 !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: 600 !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Also target the general Material-UI classes */
+.MuiTypography-h3,
+.MuiTypography-h3 *,
+.MuiTypography-h3 span,
+.MuiTypography-h3 div,
+.MuiTypography-h3 p {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: bold !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.MuiTypography-h6,
+.MuiTypography-h6 *,
+.MuiTypography-h6 span,
+.MuiTypography-h6 div,
+.MuiTypography-h6 p {
+  color: #1976d2 !important;
+  -webkit-text-fill-color: #1976d2 !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: 600 !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Target "Cari Event Favorit Anda" - h4 element */
+.MuiTypography-h4.css-fnkoz3-MuiTypography-root,
+.MuiTypography-h4.css-fnkoz3-MuiTypography-root *,
+.MuiTypography-h4.css-fnkoz3-MuiTypography-root span,
+.MuiTypography-h4.css-fnkoz3-MuiTypography-root div,
+.MuiTypography-h4.css-fnkoz3-MuiTypography-root p {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: bold !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.MuiTypography-h4,
+.MuiTypography-h4 *,
+.MuiTypography-h4 span,
+.MuiTypography-h4 div,
+.MuiTypography-h4 p {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: bold !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.events-hero-subtitle,
+.events-hero-subtitle *,
+.events-hero-subtitle h5,
+.events-hero-subtitle span,
+.events-hero-subtitle div,
+.events-hero-subtitle p {
+  color: #1976d2 !important;
+  -webkit-text-fill-color: #1976d2 !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: 600 !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.events-search-title,
+.events-search-title *,
+.events-search-title h4,
+.events-search-title span,
+.events-search-title div,
+.events-search-title p {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  font-weight: bold !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Override any gradient or background text effects */
+[class*="MuiTypography"] {
+  color: inherit !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+}
+
+/* Force override any white or transparent text */
+h1, h2, h3, h4, h5, h6 {
+  color: inherit !important;
+}
+
+/* Additional overrides for Material-UI components */
+.MuiTypography-root {
+  color: inherit !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+}
+
+/* Ultra-specific overrides for Events page */
+[data-testid="events-hero-title"],
+[data-testid="events-hero-subtitle"],
+[data-testid="events-search-title"] {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Force override any gradient text effects */
+* {
+  -webkit-text-fill-color: unset !important;
+  background-clip: unset !important;
+  -webkit-background-clip: unset !important;
+}
+
+/* Nuclear option - override everything */
+body * {
+  color: inherit !important;
+}
+
+/* ULTRA SPECIFIC - Target the exact elements */
+h1[class*="MuiTypography"],
+h1[class*="MuiTypography"] *,
+h1[class*="MuiTypography"] span,
+h1[class*="MuiTypography"] div {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Target any h1 element that contains "Event Terbaik" */
+h1:contains("Event Terbaik"),
+h1:contains("Event Terbaik") *,
+h1:contains("Event Terbaik") span,
+h1:contains("Event Terbaik") div {
+  color: #6a1b9a !important;
+  -webkit-text-fill-color: #6a1b9a !important;
+  text-shadow: 3px 3px 6px rgba(0,0,0,0.9) !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}

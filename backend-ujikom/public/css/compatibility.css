@@ -1,0 +1,36 @@
+/* Compatibility fixes for various browsers */
+
+/* Fix for Chrome Android */
+img, video, iframe {
+    -webkit-filter: none;  /* Fallback */
+    filter: none;          /* Standard */
+}
+
+/* Text size adjust for better mobile rendering */
+html {
+    -webkit-text-size-adjust: 100%;  /* For older iOS and Android */
+    text-size-adjust: 100%;          /* Standard */
+}
+
+/* Backdrop filter support */
+.backdrop-blur {
+    -webkit-backdrop-filter: blur(8px); /* Safari 9+ */
+    backdrop-filter: blur(8px);         /* Standard */
+}
+
+/* User select support */
+.selectable {
+    -webkit-user-select: text;  /* Safari */
+    -moz-user-select: text;     /* Firefox */
+    -ms-user-select: text;      /* IE10+/Edge */
+    user-select: text;          /* Standard */
+}
+
+/* Forced color mode adjustments */
+@media (forced-colors: active) {
+    /* Add styles for forced color mode here */
+    body {
+        forced-color-adjust: auto;  /* Standard */
+        -ms-high-contrast-adjust: auto;  /* IE/Edge */
+    }
+}

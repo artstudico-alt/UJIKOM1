@@ -1,0 +1,413 @@
+/* ULTIMATE SCROLLBAR ELIMINATION - MAXIMUM PRIORITY */
+html {
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  min-height: 100vh;
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* AGGRESSIVE GLOBAL SCROLLBAR ELIMINATION */
+html {
+  height: 100%;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+html::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden !important;
+}
+
+/* COMPLETELY HIDE ALL SCROLLBARS EVERYWHERE */
+*, *::before, *::after {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+}
+
+*::-webkit-scrollbar, 
+*::before::-webkit-scrollbar, 
+*::after::-webkit-scrollbar {
+  display: none !important; /* Safari and Chrome */
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+/* Force hide on all states */
+*:hover::-webkit-scrollbar,
+*:focus::-webkit-scrollbar,
+*:active::-webkit-scrollbar,
+*:visited::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+#root::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* FORCE HIDE ALL SCROLLBARS - NO EXCEPTIONS */
+.admin-content {
+  overflow: hidden !important;
+  height: 100%;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.admin-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* TARGETED SIDEBAR SCROLLBAR HIDING ONLY */
+.MuiDrawer-root,
+.MuiDrawer-paper,
+.css-qevy3a,
+.css-b7dj7n-MuiList-root,
+.css-171sim1-MuiListItem-root,
+.css-cyi8s4-MuiButtonBase-root-MuiListItemButton-root {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow: hidden !important;
+}
+
+/* SIDEBAR WEBKIT SCROLLBAR HIDING */
+.MuiDrawer-root::-webkit-scrollbar,
+.MuiDrawer-paper::-webkit-scrollbar,
+.css-qevy3a::-webkit-scrollbar,
+.css-b7dj7n-MuiList-root::-webkit-scrollbar,
+.css-171sim1-MuiListItem-root::-webkit-scrollbar,
+.css-cyi8s4-MuiButtonBase-root-MuiListItemButton-root::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* FORCE HIDE ON ALL HTML ELEMENTS */
+html, body, div, span, section, article, aside, nav, header, footer, main,
+form, input, textarea, select, button, table, tr, td, th, ul, ol, li {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, div::-webkit-scrollbar, 
+span::-webkit-scrollbar, section::-webkit-scrollbar, article::-webkit-scrollbar,
+aside::-webkit-scrollbar, nav::-webkit-scrollbar, header::-webkit-scrollbar,
+footer::-webkit-scrollbar, main::-webkit-scrollbar, form::-webkit-scrollbar,
+input::-webkit-scrollbar, textarea::-webkit-scrollbar, select::-webkit-scrollbar,
+button::-webkit-scrollbar, table::-webkit-scrollbar, tr::-webkit-scrollbar,
+td::-webkit-scrollbar, th::-webkit-scrollbar, ul::-webkit-scrollbar,
+ol::-webkit-scrollbar, li::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* NUCLEAR OPTION - HIDE SCROLLBARS ON EVERYTHING */
+iframe, embed, object, video, audio, canvas, svg {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+iframe::-webkit-scrollbar, embed::-webkit-scrollbar, object::-webkit-scrollbar,
+video::-webkit-scrollbar, audio::-webkit-scrollbar, canvas::-webkit-scrollbar,
+svg::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* FORCE HIDE ON PSEUDO CLASSES AND STATES */
+*:hover, *:focus, *:active, *:visited, *:target, *:checked, *:disabled {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* VIEWPORT AND WINDOW SCROLLBARS - NUCLEAR ELIMINATION */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+}
+
+::-webkit-scrollbar-track {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+}
+
+::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+}
+
+/* FORCE BROWSER TO NEVER SHOW SCROLLBARS */
+html {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow: hidden !important;
+}
+
+body {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow: hidden !important;
+}
+
+/* OVERRIDE ANY POSSIBLE SCROLLBAR STYLES */
+* {
+  scrollbar-color: transparent transparent !important;
+  scrollbar-width: none !important;
+  -webkit-scrollbar-width: none !important;
+  -webkit-scrollbar: none !important;
+}
+
+/* BROWSER SPECIFIC OVERRIDES */
+@-moz-document url-prefix() {
+  * {
+    scrollbar-width: none !important;
+  }
+}
+
+/* WEBKIT SPECIFIC OVERRIDES */
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+  * {
+    -webkit-scrollbar: none !important;
+    -webkit-scrollbar-track: none !important;
+    -webkit-scrollbar-thumb: none !important;
+  }
+}
+
+/* MINIMAL SCROLLBAR HIDING - PRESERVE ALL FUNCTIONALITY */
+#root {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+#root::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* SMART SCROLLBAR HIDING - PRESERVE FUNCTIONALITY */
+html, body {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+html::-webkit-scrollbar, 
+body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ENSURE NORMAL FORM FUNCTIONALITY */
+.MuiTextField-root,
+.MuiFormControl-root,
+.MuiInputBase-root,
+.MuiInputLabel-root,
+.MuiOutlinedInput-root,
+.MuiInput-root,
+.MuiFilledInput-root,
+.MuiInputAdornment-root,
+.MuiSvgIcon-root {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+/* ENSURE CONTAINERS CAN SCROLL */
+.MuiContainer-root,
+.MuiBox-root,
+.MuiPaper-root {
+  overflow: visible !important;
+}
+
+/* HIDE SYSTEM SCROLLBARS */
+::-webkit-scrollbar-button,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner,
+::-webkit-resizer {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* BROWSER SCROLLBAR NUCLEAR ELIMINATION */
+:root {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* FORCE BROWSER TO NEVER SHOW SCROLLBARS */
+::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+}
+
+/* TARGET SPECIFIC CSS CLASSES FROM SIDEBAR HTML */
+.css-qevy3a,
+.css-b7dj7n-MuiList-root,
+.css-171sim1-MuiListItem-root,
+.css-cyi8s4-MuiButtonBase-root-MuiListItemButton-root,
+.css-sajf3j-MuiListItemIcon-root,
+.css-1rr4qq7,
+.css-cfq8qh-MuiListItemText-root,
+.css-mskkxb-MuiTypography-root,
+.css-z3iwtc-MuiTypography-root,
+.css-14o8vr-MuiListItemIcon-root,
+.css-1a2q86w-MuiTypography-root,
+.css-tt3ovl-MuiTypography-root,
+.css-r3djoj-MuiTouchRipple-root,
+.MuiTouchRipple-root,
+.MuiButtonBase-root,
+.Mui-selected {
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  position: relative !important;
+}
+
+.css-qevy3a::-webkit-scrollbar,
+.css-b7dj7n-MuiList-root::-webkit-scrollbar,
+.css-171sim1-MuiListItem-root::-webkit-scrollbar,
+.css-cyi8s4-MuiButtonBase-root-MuiListItemButton-root::-webkit-scrollbar,
+.css-sajf3j-MuiListItemIcon-root::-webkit-scrollbar,
+.css-1rr4qq7::-webkit-scrollbar,
+.css-cfq8qh-MuiListItemText-root::-webkit-scrollbar,
+.css-mskkxb-MuiTypography-root::-webkit-scrollbar,
+.css-z3iwtc-MuiTypography-root::-webkit-scrollbar,
+.css-14o8vr-MuiListItemIcon-root::-webkit-scrollbar,
+.css-1a2q86w-MuiTypography-root::-webkit-scrollbar,
+.css-tt3ovl-MuiTypography-root::-webkit-scrollbar,
+.css-r3djoj-MuiTouchRipple-root::-webkit-scrollbar,
+.MuiTouchRipple-root::-webkit-scrollbar,
+.MuiButtonBase-root::-webkit-scrollbar,
+.Mui-selected::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Floating Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-20px) rotate(5deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-5deg);
+  }
+  75% {
+    transform: translateY(-15px) rotate(3deg);
+  }
+}
+
+/* Background Shift Animation */
+@keyframes backgroundShift {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  25% {
+    transform: translateX(-10px) translateY(-5px);
+  }
+  50% {
+    transform: translateX(5px) translateY(-10px);
+  }
+  75% {
+    transform: translateX(-5px) translateY(5px);
+  }
+}
+
+/* Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Glow Animation */
+@keyframes glow {
+  0% {
+    filter: drop-shadow(0 0 5px rgba(156, 39, 176, 0.3));
+  }
+  100% {
+    filter: drop-shadow(0 0 20px rgba(156, 39, 176, 0.6));
+  }
+}

@@ -1,0 +1,32 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="eventGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#9c27b0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2196f3;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main Circle -->
+  <circle cx="24" cy="24" r="22" fill="url(#iconGradient)" stroke="white" stroke-width="2"/>
+  
+  <!-- Event Calendar Icon -->
+  <rect x="14" y="16" width="20" height="16" rx="3" fill="white" opacity="0.95"/>
+  
+  <!-- Calendar Header -->
+  <rect x="14" y="16" width="20" height="5" rx="3" fill="url(#eventGradient)"/>
+  
+  <!-- Calendar Rings -->
+  <rect x="18" y="12" width="2" height="8" rx="1" fill="white"/>
+  <rect x="28" y="12" width="2" height="8" rx="1" fill="white"/>
+  
+  <!-- Calendar Dots -->
+  <circle cx="19" cy="25" r="1.5" fill="url(#eventGradient)" opacity="0.8"/>
+  <circle cx="24" cy="25" r="1.5" fill="url(#eventGradient)" opacity="0.8"/>
+  <circle cx="29" cy="25" r="1.5" fill="url(#eventGradient)" opacity="0.8"/>
+  <circle cx="19" cy="29" r="1.5" fill="url(#eventGradient)" opacity="0.6"/>
+  <circle cx="24" cy="29" r="1.5" fill="url(#eventGradient)" opacity="0.6"/>
+</svg>
