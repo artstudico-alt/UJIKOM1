@@ -52,6 +52,8 @@ export interface OrganizerEvent {
   price?: number;
   registration_date: string;
   image_url?: string;
+  image?: string; // Processed image URL from backend
+  flyer_path?: string; // Path to uploaded flyer
   flyer?: File;
   status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'cancelled';
   organizer_type?: 'organizer' | 'admin';
@@ -102,7 +104,18 @@ class OrganizerApiService {
   }): Promise<PaginatedResponse<OrganizerEvent>> {
     try {
       const response = await apiClient.get('/organizer/events', { params });
-      return response.data;
+      const payload = response.data;
+      const rawData: any = payload.data;
+      const events: OrganizerEvent[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray(rawData?.data)
+          ? rawData.data
+          : [];
+
+      return {
+        ...payload,
+        data: events,
+      };
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to fetch events');
     }
@@ -119,6 +132,9 @@ class OrganizerApiService {
     per_page?: number;
   }): Promise<PaginatedResponse<OrganizerEvent>> {
     try {
+      console.log('📡 getEventsWithoutAuth: Called with params:', params);
+      console.log('📡 getEventsWithoutAuth: API_BASE_URL:', API_BASE_URL);
+      
       // Create a new axios instance without auth headers
       const publicApiClient = axios.create({
         baseURL: API_BASE_URL,
@@ -128,8 +144,25 @@ class OrganizerApiService {
         },
       });
 
-      const response = await publicApiClient.get('/public/events', { params });
-      return response.data;
+      console.log('📡 getEventsWithoutAuth: Making request to /events with params:', params);
+      const response = await publicApiClient.get('/events', { params });
+      console.log('📡 getEventsWithoutAuth: Response received:', {
+        status: response.status,
+        dataLength: response.data?.data?.length,
+        totalItems: response.data?.pagination?.total
+      });
+      const payload = response.data;
+      const rawData: any = payload.data;
+      const events: OrganizerEvent[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray(rawData?.data)
+          ? rawData.data
+          : [];
+
+      return {
+        ...payload,
+        data: events,
+      };
     } catch (error: any) {
       console.warn('Public API not available, using localStorage fallback:', error);
       // Only use localStorage as last resort if public API also fails
@@ -154,17 +187,35 @@ class OrganizerApiService {
    */
   async createEvent(eventData: OrganizerEvent): Promise<ApiResponse<OrganizerEvent>> {
     try {
+      console.log('📤 createEvent: Input data:', eventData);
+      console.log('📤 createEvent: Has flyer file:', eventData.flyer instanceof File);
+      if (eventData.flyer instanceof File) {
+        console.log('📤 createEvent: Flyer file details:', {
+          name: eventData.flyer.name,
+          size: eventData.flyer.size,
+          type: eventData.flyer.type
+        });
+      }
+      
       const formData = new FormData();
       
       // Add all event fields to FormData
       Object.entries(eventData).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           if (key === 'flyer' && value instanceof File) {
+            console.log('📤 createEvent: Adding flyer file to FormData');
             formData.append('flyer', value);
           } else {
             formData.append(key, String(value));
           }
         }
+      });
+      
+      // Log FormData contents
+      console.log('📤 createEvent: FormData entries:');
+      const entries = Array.from(formData.entries());
+      entries.forEach(([key, value]) => {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
       });
 
       const response = await apiClient.post('/organizer/events', formData, {

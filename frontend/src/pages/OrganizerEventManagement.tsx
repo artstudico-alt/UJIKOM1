@@ -31,34 +31,22 @@ import {
   Search as SearchIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { eventService, Event as LocalEvent } from '../services/eventService';
+import { useNavigate, useLocation } from 'react-router-dom';
+// eventService removed - now 100% using database API
+import { Event as LocalEvent } from '../types';
 import { organizerApiService, OrganizerEvent } from '../services/organizerApiService';
 
-// Helper function to map API status to LocalEvent status
-const mapApiStatusToLocalStatus = (apiStatus: string | undefined): 'draft' | 'pending_approval' | 'published' | 'ongoing' | 'completed' | 'cancelled' => {
+// Helper function to ensure valid status
+const ensureValidStatus = (apiStatus: string | undefined): 'draft' | 'pending_approval' | 'approved' | 'published' | 'ongoing' | 'completed' | 'cancelled' | 'rejected' => {
   if (!apiStatus) return 'draft';
   
-  switch (apiStatus.toLowerCase()) {
-    case 'pending':
-    case 'pending_approval':
-      return 'pending_approval';
-    case 'approved':
-    case 'published':
-      return 'published';
-    case 'ongoing':
-      return 'ongoing';
-    case 'completed':
-      return 'completed';
-    case 'cancelled':
-      return 'cancelled';
-    default:
-      return 'draft';
-  }
+  const validStatuses = ['draft', 'pending_approval', 'approved', 'published', 'ongoing', 'completed', 'cancelled', 'rejected'];
+  return validStatuses.includes(apiStatus) ? apiStatus as any : 'draft';
 };
 
 const OrganizerEventManagement: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [events, setEvents] = useState<LocalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,11 +59,22 @@ const OrganizerEventManagement: React.FC = () => {
   });
 
   // Function to refresh events from API
-  const refreshEventsFromAPI = async () => {
+  const refreshEventsFromAPI = async (source = 'manual') => {
     try {
-      console.log('🔄 Refreshing events from API...');
+      console.log(`🔄 Refreshing events from API (${source})...`);
       const response = await organizerApiService.getEvents();
       const apiEvents = response.data || [];
+      
+      console.log('📊 API Events received:', apiEvents.length);
+      apiEvents.forEach((event, index) => {
+        console.log(`📊 Event ${index + 1}:`, {
+          id: event.id,
+          title: event.title,
+          status: event.status,
+          approved_at: event.approved_at,
+          rejected_at: event.rejected_at
+        });
+      });
       
       // Convert API events to LocalEvent format
       const mappedEvents: LocalEvent[] = apiEvents.map(event => ({
@@ -92,115 +91,100 @@ const OrganizerEventManagement: React.FC = () => {
         maxParticipants: event.max_participants || 0,
         currentParticipants: 0,
         price: event.price || 0,
-        status: mapApiStatusToLocalStatus(event.status) || 'draft',
+        status: ensureValidStatus(event.status),
         category: event.category || '',
         organizer: event.organizer_name || '',
         organizerName: event.organizer_name || '',
         organizerEmail: event.organizer_email || '',
         organizerContact: event.organizer_contact || '',
-        image: event.image_url || '',
+        // Use processed image URL from backend EventResource first
+        image: event.image || event.image_url || '',
         createdAt: event.created_at || '',
         submittedAt: event.submitted_at || '',
         approvedAt: event.approved_at || '',
         rejectedAt: event.rejected_at || '',
       }));
       
+      console.log('📊 Final mapped events:', mappedEvents.map(e => ({
+        id: e.id,
+        name: e.name,
+        status: e.status,
+        approvedAt: e.approvedAt,
+        rejectedAt: e.rejectedAt
+      })));
+      
       setEvents(mappedEvents);
       console.log('✅ Events refreshed from API:', mappedEvents.length);
     } catch (error) {
-      console.warn('⚠️ Failed to refresh from API, falling back to localStorage:', error);
-      // Fallback to localStorage if API fails
-      const localEvents = eventService.getAllEvents();
-      setEvents(localEvents);
+      console.error('❌ Failed to refresh from API (database):', error);
+      // No localStorage fallback - show error message
+      setSnackbar({
+        open: true,
+        message: 'Gagal memuat data event dari database. Silakan refresh halaman.',
+        severity: 'error'
+      });
+      setEvents([]);
     }
   };
 
-  // Load events from API on component mount
+  // Detect navigation from EventForm
   useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        console.log('🔍 Organizer: Loading events from API...');
-        
-        // Check authentication first
-        const authToken = localStorage.getItem('auth_token');
-        const user = localStorage.getItem('user');
-        
-        if (!authToken || !user) {
-          console.warn('🔐 Organizer: No authentication token found, trying public API...');
-          // Try public API first (better fallback than localStorage)
-          try {
-            const publicResponse = await organizerApiService.getEventsWithoutAuth();
-            const publicEvents = publicResponse.data || [];
-            
-            // Convert API events to LocalEvent format
-            const mappedPublicEvents: LocalEvent[] = publicEvents.map(event => ({
-              id: event.id || 0,
-              name: event.title || '',
-              title: event.title || '',
-              description: event.description || '',
-              registrationDate: event.registration_date || event.registration_deadline || '',
-              eventDate: event.date || '',
-              date: event.date || '',
-              startTime: event.start_time || '',
-              endTime: event.end_time || '',
-              location: event.location || '',
-              maxParticipants: event.max_participants || 0,
-              currentParticipants: 0,
-              price: event.price || 0,
-              status: mapApiStatusToLocalStatus(event.status) || 'draft',
-              category: event.category || '',
-              organizer: event.organizer_name || '',
-              organizerName: event.organizer_name || '',
-              organizerEmail: event.organizer_email || '',
-              organizerContact: event.organizer_contact || '',
-              image: event.image_url || '',
-              createdAt: event.created_at || '',
-              submittedAt: event.submitted_at || '',
-              approvedAt: event.approved_at || '',
-              rejectedAt: event.rejected_at || '',
-            }));
-            
-            setEvents(mappedPublicEvents);
-            console.log('✅ Organizer: Loaded from public API:', mappedPublicEvents.length);
-            return;
-          } catch (publicApiError) {
-            console.warn('🔐 Organizer: Public API also failed, falling back to localStorage');
-            // Only use localStorage as last resort
-            const localEvents = eventService.getAllEvents();
-            setEvents(localEvents);
-            console.log('✅ Organizer: Loaded from localStorage fallback:', localEvents.length);
-            return;
-          }
-        }
-        
-        await refreshEventsFromAPI();
-        
-      } catch (err: any) {
-        console.error('❌ Failed to load events from API:', err);
-        setError(err.message || 'Failed to load events');
-        
-        // Fallback to localStorage if API fails
-        console.log('🔄 Falling back to localStorage...');
-        const localEvents = eventService.getAllEvents();
-        setEvents(localEvents);
-        console.log('✅ Organizer: Loaded from localStorage fallback:', localEvents.length);
-      } finally {
-        setLoading(false);
-      }
+    const state = location.state as any;
+    if (state?.refresh || state?.newEventId) {
+      console.log('🚀 Navigated from EventForm - Refreshing...');
+      refreshEventsFromAPI('navigation');
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location]);
+
+  // Load events on component mount with aggressive auto-refresh
+  useEffect(() => {
+    console.log('🎬 OrganizerEventManagement: Component mounted');
+    setLoading(true);
+    
+    // Initial load
+    refreshEventsFromAPI('mount').finally(() => setLoading(false));
+    
+    // Auto-refresh every 10 seconds (balanced performance)
+    const autoRefreshInterval = setInterval(() => {
+      console.log('⏰ Auto-refresh (10s)');
+      refreshEventsFromAPI('auto');
+    }, 10000);
+    
+    // Listen for custom events - Single refresh
+    const handleEventCreated = () => {
+      console.log('🎉 Event created - Refreshing...');
+      refreshEventsFromAPI('event-created');
     };
     
-    loadEvents();
+    const handleEventDataChanged = () => {
+      console.log('📊 Event data changed - REFRESHING!');
+      refreshEventsFromAPI('data-changed');
+    };
     
-    // Add refresh interval to periodically check for new data
-    const refreshInterval = setInterval(() => {
-      console.log('🔄 Organizer: Auto-refreshing events...');
-      loadEvents();
-    }, 30000); // Refresh every 30 seconds
+    const handleEventStatusChanged = (event: CustomEvent) => {
+      console.log('📡 Event status changed:', event.detail);
+      refreshEventsFromAPI('status-changed');
+    };
     
+    const handleStorageChange = () => {
+      console.log('💾 Storage changed - REFRESHING!');
+      refreshEventsFromAPI('storage-change');
+    };
+    
+    // Add all event listeners
+    window.addEventListener('eventCreated', handleEventCreated);
+    window.addEventListener('eventDataChanged', handleEventDataChanged);
+    window.addEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Cleanup
     return () => {
-      clearInterval(refreshInterval);
+      clearInterval(autoRefreshInterval);
+      window.removeEventListener('eventCreated', handleEventCreated);
+      window.removeEventListener('eventDataChanged', handleEventDataChanged);
+      window.removeEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -412,16 +396,24 @@ const OrganizerEventManagement: React.FC = () => {
                           </IconButton>
                           <IconButton
                             size="small"
-                            onClick={() => {
+                            onClick={async () => {
                               if (window.confirm('Apakah Anda yakin ingin menghapus event ini?')) {
-                                eventService.deleteEvent(event.id);
-                                const updatedEvents = eventService.getAllEvents();
-                                setEvents(updatedEvents);
-                                setSnackbar({
-                                  open: true,
-                                  message: 'Event berhasil dihapus',
-                                  severity: 'success'
-                                });
+                                try {
+                                  await organizerApiService.deleteEvent(event.id);
+                                  // Refresh from database
+                                  await refreshEventsFromAPI('delete');
+                                  setSnackbar({
+                                    open: true,
+                                    message: 'Event berhasil dihapus dari database',
+                                    severity: 'success'
+                                  });
+                                } catch (error) {
+                                  setSnackbar({
+                                    open: true,
+                                    message: 'Gagal menghapus event dari database',
+                                    severity: 'error'
+                                  });
+                                }
                               }
                             }}
                           >

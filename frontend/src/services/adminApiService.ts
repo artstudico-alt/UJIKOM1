@@ -50,6 +50,7 @@ export interface AdminEvent {
   category: string;
   price?: number;
   registration_date: string;
+  image?: string;
   image_url?: string;
   status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'cancelled';
   organizer_type?: 'admin' | 'organizer';
@@ -118,41 +119,47 @@ class AdminApiService {
   }): Promise<PaginatedResponse<AdminEvent>> {
     try {
       const response = await apiClient.get('/admin/events', { params });
-      return response.data;
+      const payload = response.data;
+      const rawData: any = payload.data;
+      const events: AdminEvent[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray(rawData?.data)
+          ? rawData.data
+          : [];
+
+      return {
+        ...payload,
+        data: events,
+      };
     } catch (error: any) {
       console.error('Failed to fetch all events:', error);
       throw new Error(error.response?.data?.message || 'Failed to fetch events');
     }
   }
 
-  /**
-   * Get recent events (published events, newest first)
-   */
-  async getRecentEvents(limit: number = 5): Promise<AdminEvent[]> {
-    try {
-      const response = await this.getAllEvents({
-        status: 'published',
-        per_page: limit
-      });
-      return response.data || [];
-    } catch (error) {
-      console.error('Failed to fetch recent events:', error);
-      return [];
-    }
-  }
 
   /**
    * Get pending events for approval
    */
   async getPendingEvents(): Promise<AdminEvent[]> {
     try {
-      const response = await this.getAllEvents({
-        status: 'pending_approval',
-        per_page: 100
-      });
-      return response.data || [];
+      const response = await apiClient.get('/admin/events/pending?per_page=100');
+      return response.data.data || [];
     } catch (error) {
       console.error('Failed to fetch pending events:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get recent events for dashboard
+   */
+  async getRecentEvents(limit: number = 5): Promise<AdminEvent[]> {
+    try {
+      const response = await apiClient.get(`/admin/events/recent?limit=${limit}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Failed to fetch recent events:', error);
       return [];
     }
   }
@@ -166,7 +173,7 @@ class AdminApiService {
     role?: string;
   }): Promise<PaginatedResponse<AdminUser>> {
     try {
-      const response = await apiClient.get('/admin/users', { params });
+      const response = await apiClient.get('/users', { params });
       return response.data;
     } catch (error: any) {
       console.error('Failed to fetch users:', error);

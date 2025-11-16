@@ -28,13 +28,8 @@ class EventController extends Controller
     {
         try {
             $query = Event::with(['creator', 'eventParticipants'])
-                ->where(function($q) {
-                    $q->where('is_active', true)
-                      ->orWhere(function($subQ) {
-                          $subQ->where('organizer_type', 'organizer')
-                               ->where('status', 'published');
-                      });
-                })
+                ->where('status', 'published')
+                ->where('is_active', true)
                 ->withCount('eventParticipants as current_participants');
 
             // Search functionality

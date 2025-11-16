@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -44,7 +45,7 @@ import {
   Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { adminApiService, DashboardStats as ApiDashboardStats, AdminEvent as ApiAdminEvent } from '../services/adminApiService';
-import { eventService } from '../services/eventService';
+// eventService removed - now 100% using database API
 
 // Use interfaces from adminApiService
 type AdminEvent = ApiAdminEvent;
@@ -59,6 +60,9 @@ interface SnackbarState {
 }
 
 const AdminDashboard: React.FC = () => {
+  // Hooks
+  const navigate = useNavigate();
+  
   // State declarations
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     total_users: 0,
@@ -98,9 +102,43 @@ const AdminDashboard: React.FC = () => {
     severity: 'info'
   });
 
-  // Load initial data
+  // Load initial data with auto-refresh
   useEffect(() => {
+    console.log('🎬 Admin Dashboard: Component mounted');
     loadDashboardData();
+    
+    // Auto-refresh setiap 10 detik
+    const refreshInterval = setInterval(() => {
+      console.log('⏰ Admin Dashboard: Auto-refresh...');
+      loadDashboardData();
+    }, 10000);
+    
+    // Listen for custom events - IMMEDIATE refresh
+    const handleEventCreated = () => {
+      console.log('🎉 Admin Dashboard: Event created - REFRESHING!');
+      loadDashboardData();
+    };
+    
+    const handleEventStatusChanged = (event: CustomEvent) => {
+      console.log('📡 Admin Dashboard: Event status changed:', event.detail);
+      loadDashboardData();
+    };
+    
+    const handleEventDataChanged = () => {
+      console.log('📊 Admin Dashboard: Event data changed!');
+      loadDashboardData();
+    };
+    
+    window.addEventListener('eventCreated', handleEventCreated);
+    window.addEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
+    window.addEventListener('eventDataChanged', handleEventDataChanged);
+    
+    return () => {
+      clearInterval(refreshInterval);
+      window.removeEventListener('eventCreated', handleEventCreated);
+      window.removeEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
+      window.removeEventListener('eventDataChanged', handleEventDataChanged);
+    };
   }, []);
 
   const loadDashboardData = async () => {
@@ -116,22 +154,18 @@ const AdminDashboard: React.FC = () => {
         console.log('✅ Admin Dashboard: Stats loaded from API:', stats);
         setDashboardStats(stats);
       } catch (statsError) {
-        console.warn('⚠️ Admin Dashboard: Stats API failed, using localStorage fallback:', statsError);
-        // Calculate stats from localStorage
-        const allLocalEvents = eventService.getAllEvents();
-        const pendingCount = eventService.getPendingEvents().length;
-        const publishedCount = eventService.getEventsByStatus('published').length;
-        
+        console.error('❌ Admin Dashboard: Failed to load stats from database:', statsError);
+        // No localStorage fallback - use empty stats
         stats = {
           total_users: 0,
-          total_events: allLocalEvents.length,
-          total_organizer_events: allLocalEvents.filter(e => e.organizerName && e.organizerName !== 'Admin Utama').length,
-          total_admin_events: allLocalEvents.filter(e => !e.organizerName || e.organizerName === 'Admin Utama').length,
-          pending_approvals: pendingCount,
-          published_events: publishedCount,
-          active_events: allLocalEvents.filter(e => e.status === 'ongoing').length,
-          completed_events: allLocalEvents.filter(e => e.status === 'completed').length,
-          total_participants: allLocalEvents.reduce((sum, e) => sum + (e.currentParticipants || 0), 0),
+          total_events: 0,
+          total_organizer_events: 0,
+          total_admin_events: 0,
+          pending_approvals: 0,
+          published_events: 0,
+          active_events: 0,
+          completed_events: 0,
+          total_participants: 0,
           new_users_this_month: 0,
           new_events_this_month: allLocalEvents.filter(e => {
             const eventDate = new Date(e.createdAt || '');
@@ -147,20 +181,21 @@ const AdminDashboard: React.FC = () => {
       // Load recent events (published events)
       let recentEventsData: AdminEvent[] = [];
       try {
+        console.log('📊 Admin Dashboard: Attempting to load recent events...');
         recentEventsData = await adminApiService.getRecentEvents(5);
         console.log('✅ Admin Dashboard: Recent events loaded from API:', recentEventsData.length);
         
         // Also load all published events to show in recent events if API recent events is empty
         if (recentEventsData.length === 0) {
+          console.log('📊 Admin Dashboard: No recent events, trying getAllEvents...');
           const allEventsData = await adminApiService.getAllEvents({ status: 'published', per_page: 5 });
           recentEventsData = allEventsData.data || [];
           console.log('✅ Admin Dashboard: Loaded published events as recent:', recentEventsData.length);
         }
       } catch (recentError) {
-        console.warn('⚠️ Admin Dashboard: Recent events API failed, using localStorage:', recentError);
-        // Fallback to localStorage published events
-        const localPublishedEvents = eventService.getEventsByStatus('published').slice(0, 5);
-        recentEventsData = localPublishedEvents.map(event => ({
+        console.error('❌ Admin Dashboard: Recent events API failed:', recentError);
+        // No localStorage fallback
+        recentEventsData = [];
           id: event.id,
           title: event.name || event.title || '',
           description: event.description || '',
@@ -192,10 +227,12 @@ const AdminDashboard: React.FC = () => {
       // Load pending events from API (organizer events now stored in database)
       let pendingEventsData: AdminEvent[] = [];
       try {
+        console.log('📊 Admin Dashboard: Attempting to load pending events...');
         pendingEventsData = await adminApiService.getPendingEvents();
         console.log('✅ Admin Dashboard: Pending events loaded from API:', pendingEventsData.length);
       } catch (pendingError) {
-        console.warn('⚠️ Admin Dashboard: Pending events API failed, using localStorage:', pendingError);
+        console.error('❌ Admin Dashboard: Pending events API failed:', pendingError);
+        console.warn('⚠️ Admin Dashboard: Using localStorage fallback...');
         // Fallback to localStorage pending events
         const localPendingEvents = eventService.getPendingEvents();
         pendingEventsData = localPendingEvents.map(event => ({
@@ -348,6 +385,15 @@ const AdminDashboard: React.FC = () => {
       
       // Reload dashboard data
       await loadDashboardData();
+      
+      // Dispatch event to notify other components (like EO dashboard)
+      window.dispatchEvent(new CustomEvent('eventStatusChanged', {
+        detail: {
+          eventId: selectedEventForReview.id,
+          newStatus: 'published',
+          action: 'approved'
+        }
+      }));
       
       setSnackbar({
         open: true,
@@ -564,67 +610,146 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Box>
 
-        {/* Pending Approvals Notification */}
-        {dashboardStats.pending_approvals > 0 && (
-          <Card sx={{ mb: 4, bgcolor: '#fef3c7', border: '1px solid #f59e0b' }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight="bold" sx={{ color: '#92400e', mb: 2 }}>
-                🔔 Persetujuan Event Tertunda ({dashboardStats.pending_approvals})
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#92400e', mb: 2 }}>
-                Ada {dashboardStats.pending_approvals} event yang menunggu persetujuan Anda.
-              </Typography>
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {pendingEvents.slice(0, 3).map((event) => (
-                  <Card key={event.id} sx={{ 
-                    p: 2, 
-                    bgcolor: 'white',
-                    border: '1px solid rgba(245, 158, 11, 0.2)',
-                    borderRadius: 2
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ 
-                        bgcolor: 'rgba(245, 158, 11, 0.1)', 
-                        color: '#f59e0b', 
-                        width: 40, 
-                        height: 40
-                      }}>
-                        <EventIcon />
-                      </Avatar>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">
-                          {event.title}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Organizer: {event.organizer_name}
-                        </Typography>
-                        <Typography variant="caption" display="block" sx={{ color: '#f59e0b' }}>
-                          Diajukan: {event.submitted_at ? formatDate(event.submitted_at) : 'N/A'}
-                        </Typography>
-                      </Box>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => handleReviewEvent(event)}
-                        sx={{
-                          borderColor: '#f59e0b',
-                          color: '#f59e0b',
-                          '&:hover': {
-                            borderColor: '#d97706',
-                            bgcolor: 'rgba(245, 158, 11, 0.05)'
-                          }
-                        }}
-                      >
-                        Review
-                      </Button>
-                    </Box>
-                  </Card>
-                ))}
+        {/* Pending Events Section */}
+        <Card sx={{ mb: 4, bgcolor: pendingEvents.length > 0 ? '#fef3c7' : '#f8fafc', border: pendingEvents.length > 0 ? '1px solid #f59e0b' : '1px solid #e2e8f0' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+              <Box>
+                <Typography variant="h5" fontWeight="bold" sx={{ color: pendingEvents.length > 0 ? '#92400e' : '#475569' }}>
+                  📋 Event Menunggu Persetujuan ({pendingEvents.length})
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#6b7280', fontStyle: 'italic' }}>
+                  Notifikasi persetujuan event ditampilkan di sini, bukan di notification bell
+                </Typography>
               </Box>
-            </CardContent>
-          </Card>
-        )}
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => navigate('/admin/events')}
+                sx={{
+                  borderColor: pendingEvents.length > 0 ? '#f59e0b' : '#64748b',
+                  color: pendingEvents.length > 0 ? '#f59e0b' : '#64748b'
+                }}
+              >
+                Lihat Semua
+              </Button>
+            </Box>
+            
+            {pendingEvents.length > 0 ? (
+              <>
+                <Typography variant="body2" sx={{ color: '#92400e', mb: 3 }}>
+                  Event-event berikut menunggu persetujuan Anda untuk dipublikasikan.
+                </Typography>
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {pendingEvents.slice(0, 5).map((event) => (
+                    <Card key={event.id} sx={{ 
+                      p: 3, 
+                      bgcolor: 'white',
+                      border: '1px solid rgba(245, 158, 11, 0.2)',
+                      borderRadius: 2,
+                      '&:hover': {
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        transform: 'translateY(-2px)',
+                        transition: 'all 0.2s ease'
+                      }
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <Avatar sx={{ 
+                          bgcolor: 'rgba(245, 158, 11, 0.1)', 
+                          color: '#f59e0b', 
+                          width: 48, 
+                          height: 48
+                        }}>
+                          <EventIcon />
+                        </Avatar>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" fontWeight="bold" gutterBottom>
+                            {event.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            👥 Organizer: {event.organizer_name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            📅 Tanggal: {formatDate(event.date)}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#f59e0b' }}>
+                            🕰 Diajukan: {event.submitted_at ? formatDate(event.submitted_at) : 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => {
+                              setSelectedEventForReview(event);
+                              setApproveDialogOpen(true);
+                            }}
+                            sx={{
+                              bgcolor: '#10b981',
+                              '&:hover': { bgcolor: '#059669' },
+                              minWidth: '90px'
+                            }}
+                          >
+                            ✓ Setujui
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setSelectedEventForReview(event);
+                              setRejectDialogOpen(true);
+                            }}
+                            sx={{
+                              borderColor: '#ef4444',
+                              color: '#ef4444',
+                              '&:hover': {
+                                borderColor: '#dc2626',
+                                bgcolor: 'rgba(239, 68, 68, 0.05)'
+                              },
+                              minWidth: '90px'
+                            }}
+                          >
+                            ✗ Tolak
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => handleReviewEvent(event)}
+                            sx={{
+                              color: '#6b7280',
+                              '&:hover': {
+                                bgcolor: 'rgba(107, 114, 128, 0.05)'
+                              },
+                              minWidth: '90px'
+                            }}
+                          >
+                            👁 Detail
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Card>
+                  ))}
+                </Box>
+                
+                {pendingEvents.length > 5 && (
+                  <Typography variant="caption" sx={{ color: '#92400e', mt: 2, display: 'block', textAlign: 'center' }}>
+                    ... dan {pendingEvents.length - 5} event lainnya
+                  </Typography>
+                )}
+              </>
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body1" color="text.secondary" gutterBottom>
+                  🎉 Tidak ada event yang menunggu persetujuan
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Semua event telah diproses atau belum ada event baru dari organizer.
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Recent Events Table */}
         <Card>

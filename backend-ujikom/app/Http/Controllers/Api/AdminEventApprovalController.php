@@ -12,6 +12,79 @@ use Illuminate\Support\Facades\Auth;
 class AdminEventApprovalController extends Controller
 {
     /**
+     * Get all events for admin dashboard
+     */
+    public function getAllEvents(Request $request): JsonResponse
+    {
+        try {
+            $query = Event::with(['creator', 'eventParticipants'])
+                ->withCount('eventParticipants as current_participants');
+
+            // Filter by status if provided
+            if ($request->has('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+
+            // Search functionality
+            if ($request->has('search') && !empty($request->search)) {
+                $query->where(function($q) use ($request) {
+                    $q->where('title', 'like', '%' . $request->search . '%')
+                      ->orWhere('description', 'like', '%' . $request->search . '%')
+                      ->orWhere('organizer_name', 'like', '%' . $request->search . '%');
+                });
+            }
+
+            $events = $query->orderBy('created_at', 'desc')
+                           ->paginate($request->get('per_page', 15));
+
+            return response()->json([
+                'status' => 'success',
+                'data' => EventResource::collection($events),
+                'pagination' => [
+                    'current_page' => $events->currentPage(),
+                    'last_page' => $events->lastPage(),
+                    'per_page' => $events->perPage(),
+                    'total' => $events->total(),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch events: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get recent events for admin dashboard
+     */
+    public function getRecentEvents(Request $request): JsonResponse
+    {
+        try {
+            $limit = $request->get('limit', 5);
+
+            $events = Event::where('status', 'published')
+                ->with(['creator', 'eventParticipants'])
+                ->withCount('eventParticipants as current_participants')
+                ->orderBy('created_at', 'desc')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => EventResource::collection($events)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch recent events: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get pending events for approval
      */
     public function getPendingEvents(Request $request): JsonResponse

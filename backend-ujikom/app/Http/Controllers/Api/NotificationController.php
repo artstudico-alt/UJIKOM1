@@ -21,6 +21,7 @@ class NotificationController extends Controller
         $perPage = $request->get('per_page', 15);
         $type = $request->get('type');
         $isRead = $request->get('is_read');
+        $excludeEventApprovals = $request->get('exclude_event_approvals', false);
 
         $query = $user->notifications()->with('event');
 
@@ -30,6 +31,12 @@ class NotificationController extends Controller
 
         if ($isRead !== null) {
             $query->where('is_read', (bool) $isRead);
+        }
+
+        // Option to exclude event approval notifications
+        // Used by notification bell/dropdown to hide these notifications
+        if ($excludeEventApprovals) {
+            $query->where('type', '!=', 'event_pending_approval');
         }
 
         $notifications = $query->orderBy('created_at', 'desc')
@@ -42,12 +49,17 @@ class NotificationController extends Controller
     }
 
     /**
-     * Get unread notifications count
+     * Get unread notifications count (excluding event approval notifications)
      */
     public function unreadCount(): JsonResponse
     {
         $user = Auth::user();
-        $count = $user->unreadNotifications()->count();
+
+        // Exclude event approval notifications from bell count
+        // These should only appear in dashboard
+        $count = $user->unreadNotifications()
+                     ->where('type', '!=', 'event_pending_approval')
+                     ->count();
 
         return response()->json([
             'success' => true,
@@ -126,7 +138,7 @@ class NotificationController extends Controller
     public function statistics(): JsonResponse
     {
         $user = Auth::user();
-        
+
         $stats = [
             'total' => $user->notifications()->count(),
             'unread' => $user->unreadNotifications()->count(),
@@ -171,7 +183,7 @@ class NotificationController extends Controller
     public function recent(): JsonResponse
     {
         $user = Auth::user();
-        
+
         $notifications = $user->notifications()
             ->with('event')
             ->orderBy('created_at', 'desc')

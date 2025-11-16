@@ -74,13 +74,13 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         // Admin Dashboard
         Route::get('/admin/dashboard/stats', [App\Http\Controllers\Admin\DashboardController::class, 'statistics']);
         Route::get('/admin/dashboard/chart-data', [App\Http\Controllers\Admin\DashboardController::class, 'chartData']);
-        
+
         // Export Data
         Route::get('/admin/export/events', [App\Http\Controllers\Admin\DashboardController::class, 'exportEvents']);
         Route::get('/admin/export/participants', [App\Http\Controllers\Admin\DashboardController::class, 'exportParticipants']);
         Route::get('/admin/export/users', [App\Http\Controllers\Admin\DashboardController::class, 'exportUsers']);
 
-        
+
         // Admin certificate management routes
         Route::get('/admin/events/certificates', [CertificateController::class, 'getEventsWithCertificates']);
         Route::get('/admin/events/{eventId}/certificates', [CertificateController::class, 'getEventCertificates']);
@@ -88,7 +88,11 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         Route::post('/admin/events/{eventId}/certificates/generate', [CertificateController::class, 'generateCertificate']);
         Route::post('/admin/events/{eventId}/certificates/generate-all', [CertificateController::class, 'generateAllCertificates']);
         Route::get('/admin/certificates/{certificateId}/download', [CertificateController::class, 'downloadCertificate']);
-        
+
+        // Admin Event Management Routes
+        Route::get('/admin/events', [AdminEventApprovalController::class, 'getAllEvents']);
+        Route::get('/admin/events/recent', [AdminEventApprovalController::class, 'getRecentEvents']);
+
         // Admin Event Approval Routes
         Route::get('/admin/events/pending', [AdminEventApprovalController::class, 'getPendingEvents']);
         Route::post('/admin/events/{event}/approve', [AdminEventApprovalController::class, 'approveEvent']);
@@ -100,18 +104,18 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     // Attendance
     Route::get('/events/{event}/attendance', [AttendanceController::class, 'index']);
     Route::post('/events/{event}/attendance/{participant}', [AttendanceController::class, 'markAttendance']);
-    
+
     // Attendance Token System
     Route::get('/events/{eventId}/attendance-token', [AttendanceController::class, 'getAttendanceToken']);
     Route::post('/attendance/verify', [AttendanceController::class, 'verifyAttendance']);
     Route::get('/attendance/status', [AttendanceController::class, 'getAttendanceStatus']);
-    
+
     // Token System Routes
     Route::post('/tokens/generate', [TokenController::class, 'generateToken']);
     Route::post('/tokens/verify', [TokenController::class, 'verifyToken']);
     Route::get('/tokens/status', [TokenController::class, 'getTokenStatus']);
     Route::post('/tokens/resend', [TokenController::class, 'resendToken']);
-    
+
     // Certificate Download Routes
     Route::get('/certificates/{certificateId}/download', [CertificateDownloadController::class, 'download']);
     Route::get('/certificates/{certificateId}/preview', [CertificateDownloadController::class, 'preview']);
@@ -126,7 +130,7 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     Route::get('/certificate-events', [EventController::class, 'getEventsWithCertificates']);
     Route::get('/events/{eventId}/participants', [EventController::class, 'getEventParticipants']);
     Route::post('/certificates/generate-from-builder', [CertificateController::class, 'generateFromBuilder']);
-    
+
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
@@ -146,14 +150,14 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     // Event Organizer Routes
     Route::prefix('organizer')->group(function () {
         Route::get('/dashboard', [OrganizerController::class, 'dashboard']);
-        
+
         // Organizer Event Management
         Route::get('/events', [OrganizerEventController::class, 'index']);
+        Route::get('/events/statistics', [OrganizerEventController::class, 'statistics']); // ✅ Specific route FIRST
         Route::post('/events', [OrganizerEventController::class, 'store']);
-        Route::get('/events/{event}', [OrganizerEventController::class, 'show']);
+        Route::get('/events/{event}', [OrganizerEventController::class, 'show']); // ✅ Dynamic route AFTER
         Route::put('/events/{event}', [OrganizerEventController::class, 'update']);
         Route::delete('/events/{event}', [OrganizerEventController::class, 'destroy']);
-        Route::get('/events/statistics', [OrganizerEventController::class, 'statistics']);
     });
 });
 

@@ -17,7 +17,7 @@ class EventResource extends JsonResource
         // Check if user is registered for this event
         $isUserRegistered = false;
         $userRegistration = null;
-        
+
         if ($request->user()) {
             $userRegistration = $this->eventParticipants()
                 ->where('participant_id', $request->user()->id)
@@ -50,7 +50,6 @@ class EventResource extends JsonResource
             'certificate_template_path' => $this->certificate_template_path,
             // Organizer fields
             'organizer_type' => $this->organizer_type ?? 'admin',
-            'status' => $this->status ?? 'published',
             'organizer_name' => $this->organizer_name,
             'organizer_email' => $this->organizer_email,
             'organizer_contact' => $this->organizer_contact,

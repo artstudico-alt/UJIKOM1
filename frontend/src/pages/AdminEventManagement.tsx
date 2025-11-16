@@ -123,7 +123,8 @@ const AdminEventManagement: React.FC = () => {
           organizerName: event.organizer_name || '',
           organizerEmail: event.organizer_email || '',
           organizerContact: event.organizer_contact || '',
-          image: event.image_url || '',
+          // Use processed image URL from backend EventResource first
+          image: event.image || event.image_url || '',
           createdAt: event.created_at || '',
           submittedAt: event.submitted_at || '',
           approvedAt: event.approved_at || '',
@@ -213,19 +214,66 @@ const AdminEventManagement: React.FC = () => {
 
     setLoading(true);
     try {
-      const approvedEvent = eventService.approveEvent(selectedEvent.id);
-      if (approvedEvent) {
-        const updatedEvents = eventService.getAllEvents();
-        setEvents(updatedEvents);
-        setApproveDialogOpen(false);
-        setSelectedEvent(null);
-        setSnackbar({
-          open: true,
-          message: `Event "${selectedEvent.name}" berhasil disetujui dan dipublikasikan!`,
-          severity: 'success'
-        });
-      }
+      console.log('🔧 Approving event:', selectedEvent.id);
+      
+      // Use adminApiService to approve event
+      await adminApiService.approveEvent(selectedEvent.id);
+      
+      console.log('✅ Event approved successfully');
+      
+      // Reload events
+      const apiEvents = await adminApiService.getAllEvents();
+      const localEvents = eventService.getAllEvents();
+      
+      // Convert and combine events
+      const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
+        id: event.id,
+        name: event.title || '',
+        title: event.title || '',
+        description: event.description || '',
+        eventDate: event.date || '',
+        date: event.date || '',
+        startTime: event.start_time || '',
+        endTime: event.end_time || '',
+        location: event.location || '',
+        maxParticipants: event.max_participants || 0,
+        currentParticipants: event.participants_count || 0,
+        registrationDate: event.registration_deadline || '',
+        price: event.price || 0,
+        status: event.status as any || 'draft',
+        category: event.category || '',
+        organizer: event.organizer_name || '',
+        organizerName: event.organizer_name || '',
+        organizerEmail: event.organizer_email || '',
+        organizerContact: event.organizer_contact || '',
+        image: (event as any).image || event.image_url || '',
+        createdAt: event.created_at || '',
+        submittedAt: event.submitted_at || '',
+        approvedAt: event.approved_at || '',
+        rejectedAt: event.rejected_at || ''
+      }));
+      
+      const allEvents = [...convertedApiEvents, ...localEvents];
+      setEvents(allEvents);
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('eventStatusChanged', {
+        detail: {
+          eventId: selectedEvent.id,
+          newStatus: 'published',
+          action: 'approved'
+        }
+      }));
+      
+      setApproveDialogOpen(false);
+      setSelectedEvent(null);
+      setSnackbar({
+        open: true,
+        message: `Event "${selectedEvent.name}" berhasil disetujui dan dipublikasikan!`,
+        severity: 'success'
+      });
     } catch (error) {
+      console.error('Error approving event:', error);
       setSnackbar({
         open: true,
         message: 'Gagal menyetujui event',
@@ -241,25 +289,69 @@ const AdminEventManagement: React.FC = () => {
 
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Update event status to cancelled
-      setEvents(prev => prev.map(event =>
-        event.id === selectedEvent.id
-          ? { ...event, status: 'cancelled' as const }
-          : event
-      ));
+      console.log('🔧 Rejecting event:', selectedEvent.id);
+      
+      // Use adminApiService to reject event
+      await adminApiService.rejectEvent(
+        selectedEvent.id,
+        'Event tidak memenuhi kriteria atau ada masalah dengan informasi yang diberikan.'
+      );
+      
+      console.log('✅ Event rejected successfully');
+      
+      // Reload events
+      const apiEvents = await adminApiService.getAllEvents();
+      const localEvents = eventService.getAllEvents();
+      
+      const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
+        id: event.id,
+        name: event.title || '',
+        title: event.title || '',
+        description: event.description || '',
+        eventDate: event.date || '',
+        date: event.date || '',
+        startTime: event.start_time || '',
+        endTime: event.end_time || '',
+        location: event.location || '',
+        maxParticipants: event.max_participants || 0,
+        currentParticipants: event.participants_count || 0,
+        registrationDate: event.registration_deadline || '',
+        price: event.price || 0,
+        status: event.status as any || 'draft',
+        category: event.category || '',
+        organizer: event.organizer_name || '',
+        organizerName: event.organizer_name || '',
+        organizerEmail: event.organizer_email || '',
+        organizerContact: event.organizer_contact || '',
+        image: event.image_url || '',
+        createdAt: event.created_at || '',
+        submittedAt: event.submitted_at || '',
+        approvedAt: event.approved_at || '',
+        rejectedAt: event.rejected_at || ''
+      }));
+      
+      const allEvents = [...convertedApiEvents, ...localEvents];
+      setEvents(allEvents);
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('eventStatusChanged', {
+        detail: {
+          eventId: selectedEvent.id,
+          newStatus: 'rejected',
+          action: 'rejected'
+        }
+      }));
 
       setSnackbar({
         open: true,
         message: `Event "${selectedEvent.name}" telah ditolak`,
         severity: 'info'
       });
-
+      
       setRejectDialogOpen(false);
       setSelectedEvent(null);
     } catch (error) {
+      console.error('Error rejecting event:', error);
       setSnackbar({
         open: true,
         message: 'Gagal menolak event',
@@ -280,22 +372,55 @@ const AdminEventManagement: React.FC = () => {
       console.log('🔧 AdminEventManagement: Starting to create admin event...');
       console.log('🔧 AdminEventManagement: Form data:', adminEventForm);
 
-      // Use organizerApiService to create admin event with proper API integration
+      // Admin events go directly to published, no approval needed
       const eventData = {
         ...adminEventForm,
-        registration_date: new Date().toISOString().split('T')[0], // Set current date as registration date
+        registration_date: adminEventForm.registration_deadline, // Use registration deadline
         organizer_type: 'admin' as const, // Mark as admin event
+        status: 'published' as const, // Admin events are published immediately
         flyer: adminEventForm.flyer || undefined // Convert null to undefined
       };
 
+      console.log('🔧 AdminEventManagement: Sending event data:', eventData);
       const response = await organizerApiService.createEvent(eventData);
 
       console.log('✅ AdminEventManagement: Event created successfully via API:', response);
 
-      // Refresh events list from API
-      const updatedEvents = eventService.getAllEvents();
-      console.log('🔄 AdminEventManagement: Refreshed events count:', updatedEvents.length);
-      setEvents(updatedEvents);
+      // Refresh events list from API (admin + local events combined)
+      const apiEvents = await adminApiService.getAllEvents();
+      const localEvents = eventService.getAllEvents();
+
+      const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
+        id: event.id,
+        name: event.title || '',
+        title: event.title || '',
+        description: event.description || '',
+        eventDate: event.date || '',
+        date: event.date || '',
+        startTime: event.start_time || '',
+        endTime: event.end_time || '',
+        location: event.location || '',
+        maxParticipants: event.max_participants || 0,
+        currentParticipants: event.participants_count || 0,
+        registrationDate: event.registration_deadline || '',
+        price: event.price || 0,
+        status: event.status as any || 'draft',
+        category: event.category || '',
+        organizer: event.organizer_name || '',
+        organizerName: event.organizer_name || '',
+        organizerEmail: event.organizer_email || '',
+        organizerContact: event.organizer_contact || '',
+        // Use processed image URL from backend EventResource first
+        image: event.image || event.image_url || '',
+        createdAt: event.created_at || '',
+        submittedAt: event.submitted_at || '',
+        approvedAt: event.approved_at || '',
+        rejectedAt: event.rejected_at || ''
+      }));
+
+      const allEvents = [...convertedApiEvents, ...localEvents];
+      console.log('🔄 AdminEventManagement: Refreshed events count:', allEvents.length);
+      setEvents(allEvents);
 
       // Close dialog and reset form
       setCreateEventDialogOpen(false);
@@ -622,16 +747,34 @@ const AdminEventManagement: React.FC = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Typography variant="body2">
-                          <strong>Nama:</strong> {selectedEvent.organizer}
+                          <strong>Nama:</strong> {selectedEvent.organizer || selectedEvent.organizerName || 'N/A'}
                         </Typography>
-                        <Typography variant="body2">
+                        <Typography variant="body2" sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          color: selectedEvent.organizerEmail ? 'inherit' : '#999',
+                          fontStyle: selectedEvent.organizerEmail ? 'normal' : 'italic'
+                        }}>
                           <EmailIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                          {selectedEvent.organizerEmail}
+                          {selectedEvent.organizerEmail || 'Email tidak tersedia'}
                         </Typography>
                         <Typography variant="body2">
                           <PhoneIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                          {selectedEvent.organizerContact}
+                          {selectedEvent.organizerContact || 'Kontak tidak tersedia'}
                         </Typography>
+                        {selectedEvent.status === 'pending_approval' && (
+                          <Typography variant="caption" sx={{ 
+                            color: '#f59e0b', 
+                            fontWeight: 600,
+                            display: 'block',
+                            mt: 1,
+                            p: 1,
+                            bgcolor: 'rgba(245, 158, 11, 0.1)',
+                            borderRadius: 1
+                          }}>
+                            ⚠️ Event ini dibuat oleh Event Organizer dan memerlukan persetujuan
+                          </Typography>
+                        )}
                       </Box>
                     </Card>
 
@@ -695,6 +838,11 @@ const AdminEventManagement: React.FC = () => {
                       <Typography variant="body2">
                         Harga: {selectedEvent.price === 0 ? 'Gratis' : formatCurrency(selectedEvent.price)}
                       </Typography>
+                      {selectedEvent.category && (
+                        <Typography variant="body2">
+                          Kategori: {selectedEvent.category}
+                        </Typography>
+                      )}
                     </Box>
                   </Box>
                 </Box>

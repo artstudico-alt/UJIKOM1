@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import NotificationBell from '../components/notifications/NotificationBell';
 
 const drawerWidth = 280;
 const collapsedWidth = 80;
@@ -117,11 +118,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton color="inherit">
-              <Badge badgeContent={4} color="error">
-                <Notifications />
-              </Badge>
-            </IconButton>
+            <NotificationBell onNotificationClick={() => navigate('/admin/notifications')} />
             
             <IconButton onClick={handleProfileMenuOpen} sx={{ p: 0 }}>
               <Avatar sx={{ 

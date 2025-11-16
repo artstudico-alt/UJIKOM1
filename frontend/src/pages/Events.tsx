@@ -67,16 +67,44 @@ const Events: React.FC = () => {
         
         // 1. Try to load from public API database first
         try {
+          console.log('📡 Public Events: Calling API with params:', { status: 'published', per_page: 50 });
           const publicResponse = await organizerApiService.getEventsWithoutAuth({
             status: 'published',
             per_page: 50
           });
           
-          if (publicResponse.data && publicResponse.data.length > 0) {
-            console.log('✅ Public Events: Loaded from database:', publicResponse.data.length);
+          console.log('📡 Public Events: API Response:', publicResponse);
+          console.log('📡 Public Events: API Raw Data:', publicResponse.data);
+
+          // Normalize API data shape: support both array and { data: [] } resource collections
+          const rawData: any = publicResponse.data as any;
+          const apiEvents: any[] = Array.isArray(rawData)
+            ? rawData
+            : Array.isArray(rawData?.data)
+              ? rawData.data
+              : [];
+
+          console.log('📡 Public Events: Normalized API events length:', apiEvents.length);
+          
+          if (apiEvents.length > 0) {
+            console.log('✅ Public Events: Loaded from database:', apiEvents.length);
+            
+            // Log each event status and image data
+            apiEvents.forEach((event, index) => {
+              console.log(`📊 Public Event ${index + 1}:`, {
+                id: event.id,
+                title: event.title,
+                status: event.status,
+                approved_at: event.approved_at,
+                organizer_type: event.organizer_type,
+                image: event.image,
+                image_url: event.image_url,
+                flyer_path: event.flyer_path
+              });
+            });
             
             // Convert API events to local format for compatibility
-            const databaseEvents = publicResponse.data.map(event => ({
+            const databaseEvents = apiEvents.map(event => ({
               id: event.id || 0,
               name: event.title || '',
               title: event.title || '',
@@ -96,7 +124,9 @@ const Events: React.FC = () => {
               organizerName: event.organizer_name || '',
               organizerEmail: event.organizer_email || '',
               organizerContact: event.organizer_contact || '',
-              image: event.image_url || '',
+              // IMPORTANT: Backend EventResource already exposes final image URL in `image`
+              // Use that first, then fall back to image_url if ever provided
+              image: event.image || event.image_url || '',
               createdAt: event.created_at || '',
               submittedAt: event.submitted_at || '',
               approvedAt: event.approved_at || '',
@@ -105,12 +135,21 @@ const Events: React.FC = () => {
             
             console.log('✅ Database Events processed:', databaseEvents.length);
             return databaseEvents;
+          } else {
+            console.warn('⚠️ Public Events: API returned empty data or no published events found');
+            console.log('📊 API Response structure (normalized empty):', {
+              status: (publicResponse as any).status,
+              rawData,
+            });
+            // No events in database – return empty list instead of falling back to localStorage
+            return [];
           }
         } catch (apiError) {
-          console.warn('📅 Public Events: Database API failed, falling back to localStorage:', apiError);
+          console.error('❌ Public Events: Database API failed:', apiError);
+          console.warn('📅 Public Events: Falling back to localStorage...');
         }
         
-        // 2. Fallback to localStorage if database fails
+        // 2. Fallback to localStorage only when API fails
         const publishedEvents = eventService.getPublishedEvents();
         console.log('✅ Public Events: Loaded from localStorage fallback:', publishedEvents.length);
         
@@ -132,7 +171,7 @@ const Events: React.FC = () => {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
 
-      let status: 'upcoming' | 'ongoing' | 'completed' = 'upcoming';
+      let status: 'published' | 'ongoing' | 'completed' = 'published';
       if (isToday(eventDate)) {
         status = 'ongoing';
       } else if (isBefore(eventDate, now)) {

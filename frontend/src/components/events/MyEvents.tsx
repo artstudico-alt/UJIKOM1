@@ -55,8 +55,18 @@ const MyEvents: React.FC = () => {
           return { label: 'Selesai', color: 'default' as const };
         case 'ongoing':
           return { label: 'Sedang Berlangsung', color: 'success' as const };
-        case 'upcoming':
-          return { label: 'Akan Datang', color: 'primary' as const };
+        case 'draft':
+          return { label: 'Draft', color: 'default' as const };
+        case 'pending_approval':
+          return { label: 'Menunggu Persetujuan', color: 'warning' as const };
+        case 'approved':
+          return { label: 'Disetujui', color: 'info' as const };
+        case 'published':
+          return { label: 'Dipublikasikan', color: 'success' as const };
+        case 'cancelled':
+          return { label: 'Dibatalkan', color: 'error' as const };
+        case 'rejected':
+          return { label: 'Ditolak', color: 'error' as const };
         default:
           break;
       }

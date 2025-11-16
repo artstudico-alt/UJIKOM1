@@ -271,7 +271,8 @@ const AdminEventManagement: React.FC = () => {
   };
 
   const handleCreateAdminEvent = () => {
-    setCreateEventDialogOpen(true);
+    // Arahkan admin ke halaman form event yang sama dengan event organizer
+    navigate('/admin/events/new');
   };
 
   const handleSaveAdminEvent = async () => {

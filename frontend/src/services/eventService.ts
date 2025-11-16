@@ -11,7 +11,7 @@ interface Event {
   maxParticipants: number;
   currentParticipants: number;
   price: number;
-  status: 'draft' | 'pending_approval' | 'published' | 'ongoing' | 'completed' | 'cancelled';
+  status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'ongoing' | 'completed' | 'cancelled' | 'rejected';
   category: string;
   organizer?: string;
   organizerName?: string; // For public display

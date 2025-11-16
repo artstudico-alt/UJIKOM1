@@ -79,12 +79,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
         }
       }}
     >
-      <Box sx={{ 
-        backgroundColor: 'rgba(255, 255, 255, 0.75)', 
-        backdropFilter: 'blur(10px)', 
-        height: '100%', 
-        display: 'flex', 
-        flexDirection: 'column' 
+      <Box sx={{
+        backgroundColor: 'rgba(255, 255, 255, 0.75)',
+        backdropFilter: 'blur(10px)',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
         <Box sx={{ position: 'relative' }}>
         <CardMedia
@@ -124,9 +124,9 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
           <Typography variant="body2" fontWeight={500} noWrap>{event.location}</Typography>
         </Box>
         {event.organizer && (
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
             color: 'text.secondary',
             bgcolor: '#f8f9fa',
             px: 1.5,
@@ -146,7 +146,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
             variant="outlined"
             color="primary"
             onClick={() => onViewDetails(event.id)}
-            sx={{ 
+            sx={{
               minWidth: 'auto',
               width: 48,
               height: 48,
@@ -190,7 +190,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
               variant="contained"
               color="primary"
               onClick={() => onRegister(event.id)}
-              sx={{ 
+              sx={{
                 flex: 1,
                 background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 50%, #2196f3 100%)',
                 color: 'white',
@@ -231,7 +231,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
               </Box>
             </Button>
           ) : (
-            <Tooltip 
+            <Tooltip
               title="Klik untuk login dan mulai mendaftar event gratis!"
               arrow
               placement="top"
@@ -240,7 +240,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
                 <Button
                   variant="contained"
                   onClick={() => window.location.href = '/login'}
-                  sx={{ 
+                  sx={{
                     flex: 1,
                     width: '100%',
                     background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 50%, #e65100 100%)',
@@ -285,13 +285,37 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
             </Tooltip>
           )
         )}
+
+        {/* Event sudah selesai: tampilkan label agar user paham */}
+        {!event.is_user_registered && event.status === 'completed' && (
+          <Button
+            variant="outlined"
+            disabled
+            sx={{
+              flex: 1,
+              width: '100%',
+              borderRadius: 2,
+              borderColor: 'rgba(156, 39, 176, 0.3)',
+              color: 'text.secondary',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              py: 1.2,
+              '&.Mui-disabled': {
+                borderColor: 'rgba(156, 39, 176, 0.15)',
+                color: 'text.secondary',
+              },
+            }}
+          >
+            Event telah selesai
+          </Button>
+        )}
         {event.is_user_registered && (
           <Tooltip title="Anda sudah terdaftar di event ini" arrow placement="top">
             <span style={{ flex: 1 }}>
               <Button
                 variant="contained"
                 disabled
-                sx={{ 
+                sx={{
                   flex: 1,
                   width: '100%',
                   background: 'linear-gradient(135deg, #4caf50 0%, #388e3c 50%, #2e7d32 100%)',

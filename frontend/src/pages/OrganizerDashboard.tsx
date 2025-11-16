@@ -28,7 +28,8 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { eventService, Event } from '../services/eventService';
+// eventService removed - now 100% using database API
+import { organizerApiService } from '../services/organizerApiService';
 
 interface OrganizerEvent {
   id: number;
@@ -36,7 +37,7 @@ interface OrganizerEvent {
   date: string;
   participants: number;
   maxParticipants: number;
-  status: 'upcoming' | 'ongoing' | 'completed';
+  status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'ongoing' | 'completed' | 'cancelled' | 'rejected';
   revenue: number;
 }
 
@@ -52,14 +53,63 @@ const OrganizerDashboard: React.FC = () => {
 
   const [recentEvents, setRecentEvents] = useState<OrganizerEvent[]>([]);
   const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load real data from eventService
-    const loadDashboardData = () => {
+    // Load real data from API and localStorage
+    const loadDashboardData = async () => {
       console.log('🔍 Organizer Dashboard: Loading events...');
+      setLoading(true);
       
-      // Get all events from localStorage
-      const events = eventService.getAllEvents();
+      let events: Event[] = [];
+      
+      // Try to load from API first
+      try {
+        const authToken = localStorage.getItem('auth_token');
+        if (authToken) {
+          console.log('🔍 Organizer Dashboard: Loading from API...');
+          const response = await organizerApiService.getEvents();
+          const apiEvents = response.data || [];
+          
+          // Convert API events to Event format
+          events = apiEvents.map(event => ({
+            id: event.id || 0,
+            name: event.title || '',
+            title: event.title || '',
+            description: event.description || '',
+            registrationDate: event.registration_date || event.registration_deadline || '',
+            eventDate: event.date || '',
+            date: event.date || '',
+            startTime: event.start_time || '',
+            endTime: event.end_time || '',
+            location: event.location || '',
+            maxParticipants: event.max_participants || 0,
+            currentParticipants: 0,
+            price: event.price || 0,
+            status: event.status || 'draft', // Use original API status
+            category: event.category || '',
+            organizer: event.organizer_name || '',
+            organizerName: event.organizer_name || '',
+            organizerEmail: event.organizer_email || '',
+            organizerContact: event.organizer_contact || '',
+            // Use processed image URL from backend EventResource first
+            image: event.image || event.image_url || '',
+            createdAt: event.created_at || '',
+            submittedAt: event.submitted_at || '',
+            approvedAt: event.approved_at || '',
+            rejectedAt: event.rejected_at || '',
+          }));
+          
+          console.log('✅ Organizer Dashboard: Loaded from API:', events.length);
+        } else {
+          throw new Error('No auth token');
+        }
+      } catch (error) {
+        console.error('❌ Organizer Dashboard: Failed to load from database:', error);
+        // No localStorage fallback
+        events = [];
+      }
+      
       console.log('🔍 Organizer Dashboard: Found events:', events.length);
       
       // Filter events for current organizer (you might want to add organizer filtering logic)
@@ -76,9 +126,7 @@ const OrganizerDashboard: React.FC = () => {
         date: event.eventDate || event.date || '',
         participants: event.currentParticipants || 0,
         maxParticipants: event.maxParticipants || 0,
-        status: event.status === 'published' ? 'upcoming' : 
-                event.status === 'ongoing' ? 'ongoing' : 
-                event.status === 'completed' ? 'completed' : 'upcoming',
+        status: event.status as any, // Use original API status
         revenue: (event.price || 0) * (event.currentParticipants || 0)
       }));
       
@@ -107,39 +155,77 @@ const OrganizerDashboard: React.FC = () => {
         upcomingEvents,
         totalRevenue
       });
+      
+      setLoading(false);
     };
 
     loadDashboardData();
     
-    // Listen for storage changes to update in real-time
-    const handleStorageChange = () => {
-      console.log('🔄 Organizer Dashboard: Storage changed, reloading...');
+    // Auto-refresh setiap 10 detik (balanced)
+    const refreshInterval = setInterval(() => {
+      console.log('⏰ Organizer Dashboard: Auto-refresh...');
+      loadDashboardData();
+    }, 10000);
+    
+    // Listen for custom events
+    const handleEventCreated = () => {
+      console.log('🎉 Organizer Dashboard: Event created!');
       loadDashboardData();
     };
     
+    const handleStorageChange = () => {
+      console.log('💾 Organizer Dashboard: Storage changed!');
+      loadDashboardData();
+    };
+    
+    const handleEventDataChanged = () => {
+      console.log('📊 Organizer Dashboard: Event data changed!');
+      loadDashboardData();
+    };
+    
+    const handleEventStatusChanged = (event: CustomEvent) => {
+      console.log('📡 Organizer Dashboard: Event status changed:', event.detail);
+      loadDashboardData(); // Immediate refresh
+    };
+    
+    window.addEventListener('eventCreated', handleEventCreated);
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('eventDataChanged', handleStorageChange);
+    window.addEventListener('eventDataChanged', handleEventDataChanged);
+    window.addEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
     
     return () => {
+      clearInterval(refreshInterval);
+      window.removeEventListener('eventCreated', handleEventCreated);
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('eventDataChanged', handleStorageChange);
+      window.removeEventListener('eventDataChanged', handleEventDataChanged);
+      window.removeEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
     };
   }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'upcoming': return 'primary';
+      case 'draft': return 'default';
+      case 'pending_approval': return 'warning';
+      case 'approved': return 'info';
+      case 'published': return 'success';
       case 'ongoing': return 'success';
-      case 'completed': return 'default';
+      case 'completed': return 'info';
+      case 'cancelled': return 'error';
+      case 'rejected': return 'error';
       default: return 'default';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'upcoming': return 'Akan Datang';
-      case 'ongoing': return 'Berlangsung';
+      case 'draft': return 'Draft';
+      case 'pending_approval': return 'Menunggu Persetujuan';
+      case 'approved': return 'Disetujui';
+      case 'published': return 'Dipublikasikan';
+      case 'ongoing': return 'Sedang Berlangsung';
       case 'completed': return 'Selesai';
+      case 'cancelled': return 'Dibatalkan';
+      case 'rejected': return 'Ditolak';
       default: return status;
     }
   };

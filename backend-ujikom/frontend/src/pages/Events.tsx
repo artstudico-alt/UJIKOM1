@@ -64,17 +64,17 @@ const Events: React.FC = () => {
     queryFn: async () => {
       try {
         console.log('🔍 Public Events: Starting to load events from database...');
-        
+
         // 1. Try to load from public API database first
         try {
           const publicResponse = await organizerApiService.getEventsWithoutAuth({
             status: 'published',
             per_page: 50
           });
-          
+
           if (publicResponse.data && publicResponse.data.length > 0) {
             console.log('✅ Public Events: Loaded from database:', publicResponse.data.length);
-            
+
             // Convert API events to local format for compatibility
             const databaseEvents = publicResponse.data.map(event => ({
               id: event.id || 0,
@@ -102,18 +102,18 @@ const Events: React.FC = () => {
               approvedAt: event.approved_at || '',
               time: event.start_time || ''
             }));
-            
+
             console.log('✅ Database Events processed:', databaseEvents.length);
             return databaseEvents;
           }
         } catch (apiError) {
           console.warn('📅 Public Events: Database API failed, falling back to localStorage:', apiError);
         }
-        
+
         // 2. Fallback to localStorage if database fails
         const publishedEvents = eventService.getPublishedEvents();
         console.log('✅ Public Events: Loaded from localStorage fallback:', publishedEvents.length);
-        
+
         return publishedEvents;
       } catch (err) {
         console.error('❌ Public Events: Error loading events:', err);
@@ -164,18 +164,42 @@ const Events: React.FC = () => {
       filteredEvents = filteredEvents.filter(event => event.status === statusFilter);
     }
 
-    // Apply sorting
+    // Apply sorting: upcoming (nearest) -> ongoing -> completed
+    const getStatusOrder = (status: 'upcoming' | 'ongoing' | 'completed') => {
+      switch (status) {
+        case 'upcoming':
+          return 0;
+        case 'ongoing':
+          return 1;
+        case 'completed':
+        default:
+          return 2;
+      }
+    };
+
     filteredEvents.sort((a, b) => {
+      const aStatusOrder = getStatusOrder(a.status);
+      const bStatusOrder = getStatusOrder(b.status);
+
+      // Primary: status order
+      if (aStatusOrder !== bStatusOrder) {
+        return aStatusOrder - bStatusOrder;
+      }
+
+      // Secondary: date
+      const aDate = new Date(a.eventDate || a.date).getTime();
+      const bDate = new Date(b.eventDate || b.date).getTime();
+
       switch (sortBy) {
         case 'date_desc':
-          return new Date(b.eventDate || b.date).getTime() - new Date(a.eventDate || a.date).getTime();
+          return bDate - aDate; // terjauh dulu
         case 'title_asc':
           return (a.title || '').localeCompare(b.title || '');
         case 'title_desc':
           return (b.title || '').localeCompare(a.title || '');
         case 'date_asc':
         default:
-          return new Date(a.eventDate || a.date).getTime() - new Date(b.eventDate || b.date).getTime();
+          return aDate - bDate; // terdekat dulu
       }
     });
 
@@ -217,7 +241,7 @@ const Events: React.FC = () => {
   return (
     <React.Fragment>
       <style>{keyframes}</style>
-      <Box sx={{ minHeight: '100vh', 
+      <Box sx={{ minHeight: '100vh',
         background: `
           radial-gradient(circle at 15% 50%, rgba(67, 0, 235, 0.15) 0%, transparent 40%),
           radial-gradient(circle at 85% 40%, rgba(235, 0, 255, 0.15) 0%, transparent 40%),
@@ -269,9 +293,9 @@ const Events: React.FC = () => {
             />
             <FormControl variant="outlined" sx={{ minWidth: { xs: '100%', md: 200 } }}>
               <InputLabel>Status</InputLabel>
-              <Select 
-                value={statusFilter} 
-                label="Status" 
+              <Select
+                value={statusFilter}
+                label="Status"
                 onChange={handleStatusFilterChange}
                 startAdornment={<FilterList sx={{ mr: 1, ml: 1, color: 'text.secondary' }}/>}
                 sx={{
@@ -301,9 +325,9 @@ const Events: React.FC = () => {
             </FormControl>
             <FormControl variant="outlined" sx={{ minWidth: { xs: '100%', md: 200 } }}>
               <InputLabel>Urutkan</InputLabel>
-              <Select 
-                value={sortBy} 
-                label="Urutkan" 
+              <Select
+                value={sortBy}
+                label="Urutkan"
                 onChange={handleSortChange}
                 startAdornment={<Sort sx={{ mr: 1, ml: 1, color: 'text.secondary' }}/>}
                 sx={{

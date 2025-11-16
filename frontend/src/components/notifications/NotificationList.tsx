@@ -35,7 +35,7 @@ const NotificationList: React.FC<NotificationListProps> = ({
   const fetchNotifications = async (page = 1, reset = false) => {
     try {
       setIsLoading(true);
-      const response = await api.get(`/notifications?page=${page}&per_page=10`);
+      const response = await api.get(`/notifications?page=${page}&per_page=10&exclude_event_approvals=true`);
       const newNotifications = response.data.data.data;
       
       if (reset) {

@@ -27,7 +27,7 @@ export interface Event {
   location: string;
   max_participants: number;
   current_participants_count: number;
-  status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+  status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'ongoing' | 'completed' | 'cancelled' | 'rejected';
   image?: string;
   flyer_path?: string;
   certificate_template_path?: string;
@@ -142,6 +142,20 @@ export interface EventFormData {
   image?: File;
   flyer?: File;
   certificate_template?: File;
+  // New fields for EO vs Admin differentiation
+  organizer_name?: string;
+  organizer_email?: string;
+  organizer_contact?: string;
+  event_type?: 'workshop' | 'seminar' | 'conference' | 'webinar' | 'training' | 'other';
+  category?: string;
+  price?: number;
+  registration_deadline?: string;
+  registration_date?: string; // Required by backend
+  start_time?: string;
+  end_time?: string;
+  // Status and approval fields
+  status?: 'draft' | 'pending_approval' | 'published' | 'cancelled';
+  created_by_role?: 'admin' | 'event_organizer';
 }
 
 // Search Types

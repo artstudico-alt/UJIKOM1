@@ -137,7 +137,7 @@ const EventList: React.FC<EventListProps> = ({
     } else if (eventDate.toDateString() === now.toDateString()) {
       return { status: 'ongoing', label: 'Sedang Berlangsung', color: 'success' as const };
     } else {
-      return { status: 'upcoming', label: 'Akan Datang', color: 'primary' as const };
+      return { status: 'published', label: 'Dipublikasikan', color: 'success' as const };
     }
   };
 
@@ -563,9 +563,14 @@ const EventList: React.FC<EventListProps> = ({
                       }
                       // Convert English values to Indonesian text
                       const statusMap: { [key: string]: string } = {
-                        'upcoming': 'Akan Datang',
+                        'draft': 'Draft',
+                        'pending_approval': 'Menunggu Persetujuan',
+                        'approved': 'Disetujui',
+                        'published': 'Dipublikasikan',
                         'ongoing': 'Sedang Berlangsung',
-                        'completed': 'Selesai'
+                        'completed': 'Selesai',
+                        'cancelled': 'Dibatalkan',
+                        'rejected': 'Ditolak'
                       };
                       return <span style={{ color: '#667eea', fontWeight: 600 }}>{statusMap[selected] || selected}</span>;
                     }}
@@ -587,9 +592,14 @@ const EventList: React.FC<EventListProps> = ({
                     }}
                   >
                     <MenuItem value="">Semua Status</MenuItem>
-                    <MenuItem value="upcoming">Akan Datang</MenuItem>
+                    <MenuItem value="draft">Draft</MenuItem>
+                    <MenuItem value="pending_approval">Menunggu Persetujuan</MenuItem>
+                    <MenuItem value="approved">Disetujui</MenuItem>
+                    <MenuItem value="published">Dipublikasikan</MenuItem>
                     <MenuItem value="ongoing">Sedang Berlangsung</MenuItem>
                     <MenuItem value="completed">Selesai</MenuItem>
+                    <MenuItem value="cancelled">Dibatalkan</MenuItem>
+                    <MenuItem value="rejected">Ditolak</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
@@ -611,12 +621,22 @@ const EventList: React.FC<EventListProps> = ({
           // Use status from backend if available, otherwise calculate
           const eventStatus = event.status ? {
             status: event.status,
-            label: event.status === 'upcoming' ? 'Akan Datang' : 
+            label: event.status === 'draft' ? 'Draft' :
+                   event.status === 'pending_approval' ? 'Menunggu Persetujuan' :
+                   event.status === 'approved' ? 'Disetujui' :
+                   event.status === 'published' ? 'Dipublikasikan' :
                    event.status === 'ongoing' ? 'Sedang Berlangsung' : 
-                   event.status === 'completed' ? 'Selesai' : 'Tidak Diketahui',
-            color: event.status === 'upcoming' ? 'primary' as const : 
+                   event.status === 'completed' ? 'Selesai' :
+                   event.status === 'cancelled' ? 'Dibatalkan' :
+                   event.status === 'rejected' ? 'Ditolak' : 'Tidak Diketahui',
+            color: event.status === 'draft' ? 'default' as const :
+                   event.status === 'pending_approval' ? 'warning' as const :
+                   event.status === 'approved' ? 'info' as const :
+                   event.status === 'published' ? 'success' as const :
                    event.status === 'ongoing' ? 'success' as const : 
-                   event.status === 'completed' ? 'default' as const : 'default' as const
+                   event.status === 'completed' ? 'info' as const :
+                   event.status === 'cancelled' ? 'error' as const :
+                   event.status === 'rejected' ? 'error' as const : 'default' as const
           } : getEventStatus(event);
             // Use backend registration status if available, otherwise calculate
             const registrationOpen = event.is_registration_open !== undefined 

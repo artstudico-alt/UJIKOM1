@@ -12,6 +12,50 @@ use Illuminate\Support\Facades\Log;
 class NotificationService
 {
     /**
+     * Send notification to admins when EO submits event for approval
+     */
+    public function sendEventPendingApprovalNotification(Event $event): void
+    {
+        try {
+            // Get all admin users (role = 'admin')
+            $admins = User::where('role', 'admin')
+                ->where('is_verified', true)
+                ->get();
+
+            foreach ($admins as $admin) {
+                Notification::create([
+                    'user_id' => $admin->id,
+                    'event_id' => $event->id,
+                    'type' => 'event_pending_approval',
+                    'title' => 'Event Menunggu Persetujuan',
+                    'message' => "Event '{$event->title}' dari {$event->organizer_name} menunggu persetujuan Anda. Silakan tinjau dan setujui event ini.",
+                    'data' => [
+                        'event_title' => $event->title,
+                        'organizer_name' => $event->organizer_name,
+                        'organizer_email' => $event->organizer_email,
+                        'event_date' => $event->date,
+                        'event_location' => $event->location,
+                        'submitted_at' => $event->submitted_at,
+                        'action_url' => '/admin/events'
+                    ],
+                ]);
+            }
+
+            Log::info('Event pending approval notifications sent', [
+                'event_id' => $event->id,
+                'event_title' => $event->title,
+                'organizer' => $event->organizer_name,
+                'admins_count' => $admins->count(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send event pending approval notifications', [
+                'event_id' => $event->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Send notification for new event
      */
     public function sendNewEventNotification(Event $event): void
@@ -19,7 +63,7 @@ class NotificationService
         try {
             // Get all verified users
             $users = User::where('is_verified', true)->get();
-            
+
             foreach ($users as $user) {
                 Notification::create([
                     'user_id' => $user->id,
@@ -64,7 +108,7 @@ class NotificationService
 
             foreach ($events as $event) {
                 $participants = $event->eventParticipants;
-                
+
                 foreach ($participants as $participant) {
                     Notification::create([
                         'user_id' => $participant->participant_id,
@@ -100,7 +144,7 @@ class NotificationService
     {
         try {
             $participants = $event->eventParticipants()->with('participant')->get();
-            
+
             foreach ($participants as $participant) {
                 Notification::create([
                     'user_id' => $participant->participant_id,
@@ -137,7 +181,7 @@ class NotificationService
     {
         try {
             $participants = $event->eventParticipants()->with('participant')->get();
-            
+
             foreach ($participants as $participant) {
                 Notification::create([
                     'user_id' => $participant->participant_id,
@@ -174,7 +218,7 @@ class NotificationService
         try {
             $today = Carbon::today();
             $now = Carbon::now();
-            
+
             // Get events that start today and are currently active for attendance
             $events = Event::whereDate('date', $today)
                 ->where('is_active', true)
@@ -212,7 +256,7 @@ class NotificationService
     {
         try {
             $now = Carbon::now();
-            
+
             // Get events that have ended
             $events = Event::where('is_active', true)
                 ->where(function ($query) use ($now) {
@@ -328,7 +372,7 @@ class NotificationService
 
             foreach ($events as $event) {
                 $participants = $event->eventParticipants;
-                
+
                 foreach ($participants as $participant) {
                     Notification::create([
                         'user_id' => $participant->participant_id,
@@ -363,7 +407,7 @@ class NotificationService
     {
         try {
             $scheduledNotifications = Notification::scheduled()->get();
-            
+
             foreach ($scheduledNotifications as $notification) {
                 // Mark as sent (remove scheduled_at)
                 $notification->update(['scheduled_at' => null]);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { IconButton, Badge } from '@mui/material';
 import { Notifications, NotificationsActive } from '@mui/icons-material';
 import api from '../../services/api';
 
@@ -52,25 +53,24 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onNotificationClick
   };
 
   return (
-    <div className="relative">
-      <button
-        onClick={handleClick}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors duration-200"
-        disabled={isLoading}
+    <IconButton 
+      color="inherit" 
+      onClick={handleClick}
+      disabled={isLoading}
+      title={unreadCount > 0 ? `${unreadCount} notifikasi belum dibaca` : 'Notifikasi'}
+    >
+      <Badge 
+        badgeContent={unreadCount > 99 ? '99+' : unreadCount} 
+        color="error"
+        invisible={unreadCount === 0}
       >
         {unreadCount > 0 ? (
-          <NotificationsActive className="h-6 w-6 text-blue-600" />
+          <NotificationsActive sx={{ color: '#4f46e5' }} />
         ) : (
-          <Notifications className="h-6 w-6" />
+          <Notifications />
         )}
-        
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-      </button>
-    </div>
+      </Badge>
+    </IconButton>
   );
 };
 

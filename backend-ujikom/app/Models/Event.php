@@ -34,6 +34,7 @@ class Event extends Model
         'organizer_email',
         'organizer_contact',
         'category',
+        'category_id',
         'price',
         'registration_date',
         'submitted_at',
@@ -100,6 +101,11 @@ class Event extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function categoryRelation()
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
     public function notifications()
     {
         return $this->hasMany(Notification::class);
@@ -136,12 +142,12 @@ class Event extends Model
         if (!$this->registration_deadline) {
             return false;
         }
-        
+
         // Check if registration deadline has passed
         if (now()->gt($this->registration_deadline)) {
             return false;
         }
-        
+
         // Check if event has already started
         $date = $this->date instanceof Carbon ? $this->date->format('Y-m-d') : $this->date;
         $time = $this->start_time instanceof Carbon ? $this->start_time->format('H:i:s') : $this->start_time;
@@ -149,7 +155,7 @@ class Event extends Model
         if ($eventDateTime->isPast()) {
             return false;
         }
-        
+
         return true;
     }
 
@@ -227,9 +233,9 @@ class Event extends Model
     {
         // Check if user is already registered
         $isRegistered = $this->eventParticipants()->where('participant_id', $userId)->exists();
-        
-        return !$isRegistered && 
-               $this->isRegistrationOpen() && 
+
+        return !$isRegistered &&
+               $this->isRegistrationOpen() &&
                !$this->hasReachedMaxParticipants();
     }
 
@@ -247,15 +253,24 @@ class Event extends Model
 
 
     /**
-     * Get event status based on date and time
+     * Get event status - returns actual database status
      */
     public function getEventStatus(): string
     {
+        // Return the actual database status
+        return $this->status ?? 'draft';
+    }
+
+    /**
+     * Get computed event status based on date and time
+     */
+    public function getComputedEventStatus(): string
+    {
         $now = now();
-        
+
         // Parse event date
         $eventDate = Carbon::parse($this->date);
-        
+
         // If event has start_time, use it for more accurate status
         if ($this->start_time) {
             // Parse start_time properly
@@ -264,7 +279,7 @@ class Event extends Model
         } else {
             $eventDateTime = $eventDate;
         }
-        
+
         if ($eventDateTime->isPast()) {
             return 'completed';
         } elseif ($eventDateTime->isToday()) {

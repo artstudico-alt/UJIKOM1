@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Http\Resources\EventResource;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -113,6 +114,18 @@ class OrganizerEventController extends Controller
             }
 
             $event = Event::create($eventData);
+
+            // Send notification to admins about pending event
+            try {
+                $notificationService = new NotificationService();
+                $notificationService->sendEventPendingApprovalNotification($event);
+            } catch (\Exception $e) {
+                // Log error but don't fail the event creation
+                \Log::error('Failed to send admin notification for pending event', [
+                    'event_id' => $event->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
 
             return response()->json([
                 'status' => 'success',
@@ -294,7 +307,7 @@ class OrganizerEventController extends Controller
     {
         try {
             $userId = Auth::id();
-            
+
             $stats = [
                 'total_events' => Event::where('user_id', $userId)->where('organizer_type', 'organizer')->count(),
                 'pending_events' => Event::where('user_id', $userId)->where('organizer_type', 'organizer')->where('status', 'pending_approval')->count(),

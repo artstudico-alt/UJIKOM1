@@ -101,7 +101,8 @@ const Home: React.FC = () => {
               time: `${event.start_time || '09:00'} - ${event.end_time || '17:00'}`,
               location: event.location || '',
               description: event.description || '',
-              image: event.image_url || 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400&h=200&fit=crop',
+              // Use processed image URL from backend EventResource first
+              image: event.image || event.image_url || 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400&h=200&fit=crop',
               badges: ['Certificate', '8+ Hours', 'Intermediate'],
               featured: false,
               early_bird_enabled: false,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -31,7 +31,9 @@ import {
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { organizerApiService, OrganizerEvent } from '../../services/organizerApiService';
 import { EventFormData } from '../../types';
 
 const schema = yup.object().shape({
@@ -51,13 +53,16 @@ interface EventFormProps {
 
 const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false, isOrganizer = false }) => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [certificateEnabled, setCertificateEnabled] = useState(false);
+  const { user } = useAuth();
 
   const {
     control,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<EventFormData>({
     resolver: yupResolver(schema),
@@ -68,19 +73,107 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
       time: '',
       location: '',
       max_participants: 50,
+      organizer_name: '',
     },
   });
+
+  // Load existing event data when editing
+  useEffect(() => {
+    const loadEvent = async () => {
+      if (!isEdit || !id) return;
+
+      try {
+        setIsLoading(true);
+        const response = await organizerApiService.getEvent(Number(id));
+        const event = response.data;
+        if (!event) return;
+
+        setValue('title', event.title || '');
+        setValue('description', event.description || '');
+        setValue('date', event.date || '');
+        // assume time stored as HH:MM:SS
+        const time = (event.start_time || '').toString().slice(0, 5);
+        setValue('time', time);
+        setValue('location', event.location || '');
+        setValue('max_participants', event.max_participants || 50);
+        setValue('organizer_name', event.organizer_name || (event as any).organizer || '');
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Gagal memuat data event.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadEvent();
+  }, [isEdit, id, setValue]);
 
   const handleSave = async (data: EventFormData) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // TODO: Implement save logic
-      console.log('Saving event:', data);
+      if (isCreate) {
+        // Samakan payload admin & organizer ke API backend
+        const today = new Date().toISOString().split('T')[0];
+
+        // Hitung registration_deadline = 1 hari sebelum tanggal event
+        let registrationDeadline = data.date;
+        if (data.date) {
+          const eventDate = new Date(data.date);
+          if (!isNaN(eventDate.getTime())) {
+            const deadlineDate = new Date(eventDate);
+            deadlineDate.setDate(deadlineDate.getDate() - 1);
+            registrationDeadline = deadlineDate.toISOString().split('T')[0];
+          }
+        }
+
+        const organizerName = data.organizer_name || user?.name || (isOrganizer ? 'Event Organizer' : 'Admin Utama');
+        const organizerEmail = user?.email || (isOrganizer ? 'organizer@example.com' : 'admin@gomoment.com');
+        const organizerContact = (user as any)?.phone || undefined;
+
+        const status: OrganizerEvent['status'] = isOrganizer ? 'pending_approval' : 'published';
+
+        const payload: OrganizerEvent = {
+          title: data.title,
+          description: data.description,
+          date: data.date,
+          start_time: data.time,
+          end_time: data.time,
+          location: data.location,
+          max_participants: data.max_participants,
+          // gunakan tanggal event sebagai deadline default jika belum ada field khusus di form
+          registration_deadline: registrationDeadline,
+          organizer_name: organizerName,
+          organizer_email: organizerEmail,
+          organizer_contact: organizerContact,
+          // sementara kategori & harga default; bisa dihubungkan ke master kategori nanti
+          category: 'Umum',
+          price: 0,
+          registration_date: today,
+          organizer_type: isOrganizer ? 'organizer' : 'admin',
+          status,
+        };
+        await organizerApiService.createEvent(payload);
+      } else if (isEdit && id) {
+        const updatePayload: Partial<OrganizerEvent> = {
+          title: data.title,
+          description: data.description,
+          date: data.date,
+          start_time: data.time,
+          end_time: data.time,
+          location: data.location,
+          max_participants: data.max_participants,
+          registration_deadline: data.date,
+          organizer_name: data.organizer_name,
+        };
+
+        await organizerApiService.updateEvent(Number(id), updatePayload);
+      }
+
       navigate(isOrganizer ? '/organizer/events' : '/admin/events');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Gagal menyimpan event. Silakan coba lagi.');
+      // organizerApiService sudah melempar Error(message), jadi gunakan err.message
+      setError(err.message || 'Gagal menyimpan event. Silakan coba lagi.');
     } finally {
       setIsLoading(false);
     }
@@ -96,16 +189,16 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <Avatar sx={{ 
-              bgcolor: '#4f46e5', 
-              width: 48, 
+            <Avatar sx={{
+              bgcolor: '#4f46e5',
+              width: 48,
               height: 48,
               boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)'
             }}>
               <EventIcon sx={{ fontSize: 24 }} />
             </Avatar>
             <Box>
-              <Typography variant="h4" component="h1" fontWeight="bold" sx={{ 
+              <Typography variant="h4" component="h1" fontWeight="bold" sx={{
                 color: '#1e293b',
                 background: 'linear-gradient(135deg, #4f46e5, #3730a3)',
                 WebkitBackgroundClip: 'text',
@@ -119,17 +212,17 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
               </Typography>
             </Box>
           </Box>
-          
+
           {/* Status Chips */}
           <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-            <Chip 
-              label={isCreate ? "Mode: Tambah Baru" : "Mode: Edit"} 
-              color="primary" 
+            <Chip
+              label={isCreate ? "Mode: Tambah Baru" : "Mode: Edit"}
+              color="primary"
               size="small"
               sx={{ fontWeight: 600 }}
             />
-            <Chip 
-              label={certificateEnabled ? "🎓 Certificate: Aktif" : "🎓 Certificate: Nonaktif"} 
+            <Chip
+              label={certificateEnabled ? "🎓 Certificate: Aktif" : "🎓 Certificate: Nonaktif"}
               color={certificateEnabled ? "success" : "default"}
               size="small"
               sx={{ fontWeight: 600 }}
@@ -143,8 +236,8 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
           </Alert>
         )}
 
-        <Paper elevation={0} sx={{ 
-          p: 4, 
+        <Paper elevation={0} sx={{
+          p: 4,
           borderRadius: 3,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid rgba(79, 70, 229, 0.1)'
@@ -166,7 +259,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     </Typography>
                   </Box>
                 </Box>
-                
+
                 <Box sx={{ display: 'grid', gap: 3 }}>
                   <Controller
                     name="title"
@@ -219,6 +312,31 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                       />
                     )}
                   />
+
+                  {isOrganizer && (
+                    <Controller
+                      name="organizer_name"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Nama Penyelenggara"
+                          placeholder="Masukkan nama penyelenggara event"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 2,
+                              '&:hover': {
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#4f46e5',
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  )}
                 </Box>
               </CardContent>
             </Card>
@@ -239,7 +357,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     </Typography>
                   </Box>
                 </Box>
-                
+
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
                   <Controller
                     name="date"
@@ -363,10 +481,10 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     </Typography>
                   </Box>
                 </Box>
-                
-                <Box sx={{ 
-                  p: 3, 
-                  bgcolor: certificateEnabled ? 'rgba(139, 92, 246, 0.05)' : 'rgba(148, 163, 184, 0.05)', 
+
+                <Box sx={{
+                  p: 3,
+                  bgcolor: certificateEnabled ? 'rgba(139, 92, 246, 0.05)' : 'rgba(148, 163, 184, 0.05)',
                   borderRadius: 2,
                   border: certificateEnabled ? '2px solid rgba(139, 92, 246, 0.2)' : '2px solid rgba(148, 163, 184, 0.2)',
                   transition: 'all 0.3s ease'
@@ -388,21 +506,21 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     }
                     label={
                       <Box sx={{ ml: 1 }}>
-                        <Typography variant="body1" fontWeight="bold" sx={{ 
-                          color: certificateEnabled ? '#8b5cf6' : '#64748b' 
+                        <Typography variant="body1" fontWeight="bold" sx={{
+                          color: certificateEnabled ? '#8b5cf6' : '#64748b'
                         }}>
                           {certificateEnabled ? '🎓 Sertifikat Diaktifkan' : '🎓 Sertifikat Dinonaktifkan'}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {certificateEnabled 
-                            ? 'Peserta akan mendapatkan sertifikat setelah menyelesaikan event' 
+                          {certificateEnabled
+                            ? 'Peserta akan mendapatkan sertifikat setelah menyelesaikan event'
                             : 'Peserta tidak akan mendapatkan sertifikat untuk event ini'
                           }
                         </Typography>
                       </Box>
                     }
                   />
-                  
+
                   {certificateEnabled && (
                     <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: 2 }}>
                       <Typography variant="body2" sx={{ color: '#8b5cf6', fontWeight: 600, mb: 1 }}>
@@ -441,7 +559,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     </Typography>
                   </Box>
                 </Box>
-                
+
                 <TextField
                   label="Upload Flyer/Poster Event"
                   type="file"
@@ -460,7 +578,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     }
                   }}
                 />
-                
+
                 <Box sx={{ p: 3, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
                   <Typography variant="body2" sx={{ mb: 2, fontWeight: 600, color: '#4f46e5' }}>
                     📸 Panduan Upload Image:

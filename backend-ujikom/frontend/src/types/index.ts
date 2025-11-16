@@ -139,6 +139,7 @@ export interface EventFormData {
   time: string;
   location: string;
   max_participants: number;
+  organizer_name?: string;
   image?: File;
   flyer?: File;
   certificate_template?: File;

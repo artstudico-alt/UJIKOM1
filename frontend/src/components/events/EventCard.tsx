@@ -19,6 +19,7 @@ import {
   PersonAdd,
   Login,
   TaskAlt,
+  Cancel
 } from '@mui/icons-material';
 
 interface Event {
@@ -29,7 +30,7 @@ interface Event {
   start_time: string;
   end_time: string;
   image?: string;
-  status: 'upcoming' | 'ongoing' | 'completed';
+  status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'ongoing' | 'completed' | 'cancelled' | 'rejected';
   is_user_registered?: boolean;
   organizer?: string; // Nama penyelenggara - TAMPIL DI PUBLIK
 }
@@ -45,8 +46,25 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
   const [imageError, setImageError] = useState(false);
 
   const handleImageError = () => {
+    console.log('🖼️ EventCard: Image error for event:', {
+      id: event.id,
+      title: event.title,
+      image: event.image,
+      imageError: imageError
+    });
     setImageError(true);
   };
+  
+  // Debug image data
+  React.useEffect(() => {
+    console.log('🖼️ EventCard: Image data for event:', {
+      id: event.id,
+      title: event.title,
+      image: event.image,
+      hasImage: !!event.image,
+      imageError: imageError
+    });
+  }, [event.id, event.image, imageError]);
 
   const getStatusChip = () => {
     switch (event.status) {
@@ -54,9 +72,20 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
         return <Chip label="Sedang Berlangsung" color="success" size="small" icon={<HourglassEmpty />} />;
       case 'completed':
         return <Chip label="Selesai" color="default" size="small" icon={<CheckCircle />} />;
-      case 'upcoming':
+      case 'draft':
+        return <Chip label="Draft" color="default" size="small" icon={<CalendarToday />} />;
+      case 'pending_approval':
+        return <Chip label="Menunggu Persetujuan" color="warning" size="small" icon={<HourglassEmpty />} />;
+      case 'approved':
+        return <Chip label="Disetujui" color="info" size="small" icon={<CheckCircle />} />;
+      case 'published':
+        return <Chip label="Dipublikasikan" color="success" size="small" icon={<CheckCircle />} />;
+      case 'cancelled':
+        return <Chip label="Dibatalkan" color="error" size="small" icon={<Cancel />} />;
+      case 'rejected':
+        return <Chip label="Ditolak" color="error" size="small" icon={<Cancel />} />;
       default:
-        return <Chip label="Akan Datang" color="primary" size="small" icon={<CalendarToday />} />;
+        return <Chip label="Tidak Diketahui" color="default" size="small" icon={<CalendarToday />} />;
     }
   };
 
@@ -184,7 +213,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
             <Visibility sx={{ fontSize: '1.2rem' }} />
           </Button>
         </Tooltip>
-        {onRegister && !event.is_user_registered && event.status === 'upcoming' && (
+        {onRegister && !event.is_user_registered && event.status === 'published' && (
           isAuthenticated ? (
             <Button
               variant="contained"

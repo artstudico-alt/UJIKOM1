@@ -448,6 +448,17 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
+        path="/admin/notifications"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <Notifications />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      <Route
         path="/admin/events"
         element={
           <AdminRoute>
