@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Participants API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #9c27b0;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background: linear-gradient(135deg, #9c27b0, #673ab7);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: linear-gradient(135deg, #7b1fa2, #512da8);
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #9c27b0;
+        }
+        .success {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        pre {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Participants API Endpoints</h1>
+        
+        <div class="info">
+            <strong>📝 Instructions:</strong><br>
+            1. Masukkan Auth Token dari localStorage (buka Console → localStorage.getItem('auth_token'))<br>
+            2. Masukkan Event ID yang ingin di-test<br>
+            3. Klik tombol untuk test endpoint
+        </div>
+
+        <div class="form-group">
+            <label>Auth Token:</label>
+            <input type="text" id="authToken" placeholder="Paste your auth token here">
+        </div>
+
+        <div class="form-group">
+            <label>Event ID:</label>
+            <input type="number" id="eventId" placeholder="Enter event ID (e.g., 1)">
+        </div>
+
+        <button onclick="testGetParticipants()">📋 Test Get Participants</button>
+        <button onclick="testExportExcel()">📥 Test Export Excel</button>
+        <button onclick="getTokenFromStorage()">🔑 Get Token from Storage</button>
+
+        <div id="result" class="result" style="display: none;">
+            <h3>Result:</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+
+        function getTokenFromStorage() {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                document.getElementById('authToken').value = token;
+                showResult('success', 'Token found and filled!', { token: token.substring(0, 50) + '...' });
+            } else {
+                showResult('error', 'No token found in localStorage. Please login first!');
+            }
+        }
+
+        async function testGetParticipants() {
+            const token = document.getElementById('authToken').value;
+            const eventId = document.getElementById('eventId').value;
+
+            if (!token || !eventId) {
+                showResult('error', 'Please fill in both Auth Token and Event ID!');
+                return;
+            }
+
+            try {
+                showResult('info', 'Testing GET Participants endpoint...', { loading: true });
+
+                const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/participants`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('success', `✅ Success! Found ${data.data?.length || 0} participants`, data);
+                } else {
+                    showResult('error', `❌ Error: ${data.message || 'Unknown error'}`, data);
+                }
+            } catch (error) {
+                showResult('error', `❌ Network Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        async function testExportExcel() {
+            const token = document.getElementById('authToken').value;
+            const eventId = document.getElementById('eventId').value;
+
+            if (!token || !eventId) {
+                showResult('error', 'Please fill in both Auth Token and Event ID!');
+                return;
+            }
+
+            try {
+                showResult('info', 'Testing Export Excel endpoint...', { loading: true });
+
+                const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/participants/export`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    }
+                });
+
+                if (response.ok) {
+                    // Download the file
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `participants_event_${eventId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    showResult('success', '✅ Success! Excel file downloaded!', { 
+                        message: 'Check your Downloads folder',
+                        filename: a.download
+                    });
+                } else {
+                    const data = await response.json();
+                    showResult('error', `❌ Error: ${data.message || 'Unknown error'}`, data);
+                }
+            } catch (error) {
+                showResult('error', `❌ Network Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        function showResult(type, message, data = null) {
+            const resultDiv = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultDiv.style.display = 'block';
+            
+            let html = `<p class="${type}">${message}</p>`;
+            
+            if (data) {
+                html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            resultContent.innerHTML = html;
+            
+            // Scroll to result
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Auto-load token on page load
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                document.getElementById('authToken').value = token;
+            }
+        });
+    </script>
+</body>
+</html>

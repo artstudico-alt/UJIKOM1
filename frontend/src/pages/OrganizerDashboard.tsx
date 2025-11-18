@@ -41,8 +41,35 @@ interface OrganizerEvent {
   revenue: number;
 }
 
+interface DashboardEvent {
+  id: number;
+  name: string;
+  title: string;
+  description: string;
+  registrationDate: string;
+  eventDate: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  maxParticipants: number;
+  currentParticipants: number;
+  price: number;
+  status: string;
+  category: string;
+  organizer: string;
+  organizerName: string;
+  organizerEmail: string;
+  organizerContact: string;
+  image: string;
+  createdAt: string;
+  submittedAt: string;
+  approvedAt: string;
+  rejectedAt: string;
+}
+
 const OrganizerDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState([
     { label: 'Total Events', value: '0', icon: <EventIcon fontSize="large" color="primary" />, color: '#4f46e5' },
@@ -52,16 +79,34 @@ const OrganizerDashboard: React.FC = () => {
   ]);
 
   const [recentEvents, setRecentEvents] = useState<OrganizerEvent[]>([]);
-  const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [allEvents, setAllEvents] = useState<DashboardEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load real data from API and localStorage
+    console.log('🎬 Organizer Dashboard: Component mounted');
+    console.log('🔐 Auth status:', { isAuthenticated, authLoading, userRole: user?.role });
+    
+    // Wait for auth to finish loading
+    if (authLoading) {
+      console.log('⏳ Waiting for auth to complete...');
+      return;
+    }
+    
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      console.log('❌ User not authenticated, redirecting to login...');
+      navigate('/login');
+      return;
+    }
+    
+    console.log('✅ User authenticated, loading dashboard...');
+    
+    // Load real data from API
     const loadDashboardData = async () => {
       console.log('🔍 Organizer Dashboard: Loading events...');
       setLoading(true);
       
-      let events: Event[] = [];
+      let events: DashboardEvent[] = [];
       
       // Try to load from API first
       try {
@@ -71,7 +116,7 @@ const OrganizerDashboard: React.FC = () => {
           const response = await organizerApiService.getEvents();
           const apiEvents = response.data || [];
           
-          // Convert API events to Event format
+          // Convert API events to DashboardEvent format
           events = apiEvents.map(event => ({
             id: event.id || 0,
             name: event.title || '',
@@ -159,7 +204,11 @@ const OrganizerDashboard: React.FC = () => {
       setLoading(false);
     };
 
-    loadDashboardData();
+    // Add small delay to ensure token is fully ready
+    const loadTimer = setTimeout(() => {
+      console.log('🔄 Starting dashboard load after auth confirmation...');
+      loadDashboardData();
+    }, 300); // 300ms delay to ensure token is ready
     
     // Auto-refresh setiap 10 detik (balanced)
     const refreshInterval = setInterval(() => {
@@ -194,13 +243,14 @@ const OrganizerDashboard: React.FC = () => {
     window.addEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
     
     return () => {
+      clearTimeout(loadTimer);
       clearInterval(refreshInterval);
       window.removeEventListener('eventCreated', handleEventCreated);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('eventDataChanged', handleEventDataChanged);
       window.removeEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
     };
-  }, []);
+  }, [isAuthenticated, authLoading, user, navigate]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -104,14 +104,79 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
+  // Session timeout: 5 minutes = 300000ms
+  const SESSION_TIMEOUT = 5 * 60 * 1000;
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  // Reset session timeout
+  const resetSessionTimeout = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    // Only set timeout if user is authenticated
+    if (state.isAuthenticated) {
+      localStorage.setItem('last_activity', Date.now().toString());
+      
+      timeoutId = setTimeout(() => {
+        console.log('Session timeout - logging out user');
+        logout(true);
+        window.location.href = '/login?session_expired=true';
+      }, SESSION_TIMEOUT);
+    }
+  };
+
+  // Track user activity
+  useEffect(() => {
+    if (!state.isAuthenticated) return;
+
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    
+    const handleActivity = () => {
+      resetSessionTimeout();
+    };
+
+    // Add event listeners
+    events.forEach(event => {
+      document.addEventListener(event, handleActivity);
+    });
+
+    // Initial timeout setup
+    resetSessionTimeout();
+
+    // Cleanup
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [state.isAuthenticated]);
+
   // Check if user is already authenticated on mount
   useEffect(() => {
     const checkAuth = async () => {
       console.log('AuthContext: Checking authentication...');
       const token = localStorage.getItem('auth_token');
+      const lastActivity = localStorage.getItem('last_activity');
       console.log('AuthContext: Token found:', !!token);
       
       if (token) {
+        // Check if session has expired
+        if (lastActivity) {
+          const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+          if (timeSinceLastActivity > SESSION_TIMEOUT) {
+            console.log('Session expired due to inactivity');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('last_activity');
+            dispatch({ type: 'AUTH_LOGOUT' });
+            return;
+          }
+        }
+
         try {
           console.log('AuthContext: Attempting to get current user...');
           dispatch({ type: 'AUTH_START' });
@@ -180,6 +245,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.status === 'success') {
         const { user, token } = response.data;
         localStorage.setItem('auth_token', token);
+        localStorage.setItem('last_activity', Date.now().toString());
         if (remember) {
           localStorage.setItem('user', JSON.stringify(user));
         }
@@ -223,6 +289,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { user, token } = response.data;
         localStorage.setItem('auth_token', token);
         localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('last_activity', Date.now().toString());
         dispatch({ type: 'AUTH_SUCCESS', payload: { user, token } });
       } else {
         throw new Error(response.message || 'OTP verification failed');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { organizerApiService } from '../services/organizerApiService';
 import {
   Box,
   Container,
@@ -40,45 +41,87 @@ import {
   People as PeopleIcon,
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
+import CircularProgress from '@mui/material/CircularProgress';
 
 interface Participant {
   id: number;
+  user_id: number;
   name: string;
   email: string;
   phone: string;
-  eventId: number;
-  eventName: string;
-  registrationDate: string;
-  status: 'registered' | 'attended' | 'cancelled' | 'no_show';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
-  certificateIssued: boolean;
+  registration_number: string;
+  registration_date: string;
+  attendance_status: string;
+  is_attendance_verified: boolean;
+  has_certificate: boolean;
 }
 
 interface Event {
-  id: number;
-  name: string;
+  id?: number;
+  title: string;
   date: string;
-  maxParticipants: number;
-  currentParticipants: number;
+  max_participants?: number;
+  current_participants?: number;
 }
 
 const OrganizerParticipants: React.FC = () => {
-  const [participants, setParticipants] = useState<Participant[]>([
-    // REAL DATA: Kosong sampai ada peserta yang mendaftar ke event organizer
-    // Data akan diisi dari backend API berdasarkan event yang dibuat organizer
-  ]);
-
-  const [events] = useState<Event[]>([
-    // REAL DATA: Kosong sampai organizer membuat event
-    // Data akan diisi dari backend API berdasarkan event yang dibuat organizer
-  ]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string>('all');
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [eventFilter, setEventFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
-  const [tabValue, setTabValue] = useState(0);
+
+  // Fetch events on mount
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  // Fetch participants when event is selected
+  useEffect(() => {
+    if (selectedEventId && selectedEventId !== 'all') {
+      fetchParticipants(parseInt(selectedEventId));
+    } else {
+      setParticipants([]);
+    }
+  }, [selectedEventId]);
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const response = await organizerApiService.getEvents();
+      if (response.status === 'success' && response.data) {
+        setEvents(response.data as Event[]);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchParticipants = async (eventId: number) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:8000/api/organizer/events/${eventId}/participants`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        }
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        setParticipants(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -120,11 +163,9 @@ const OrganizerParticipants: React.FC = () => {
 
   const filteredParticipants = participants.filter(participant => {
     const matchesSearch = participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         participant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         participant.eventName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEvent = eventFilter === 'all' || participant.eventId.toString() === eventFilter;
-    const matchesStatus = statusFilter === 'all' || participant.status === statusFilter;
-    return matchesSearch && matchesEvent && matchesStatus;
+                         participant.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || participant.attendance_status === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   const handleViewParticipant = (participant: Participant) => {
@@ -134,31 +175,46 @@ const OrganizerParticipants: React.FC = () => {
 
   const handleUpdateStatus = (participantId: number, newStatus: string) => {
     setParticipants(participants.map(p => 
-      p.id === participantId ? { ...p, status: newStatus as any } : p
+      p.id === participantId ? { ...p, attendance_status: newStatus } : p
     ));
   };
 
-  const handleExportData = () => {
-    // Simulate export functionality
-    const csvContent = "data:text/csv;charset=utf-8," + 
-      "Nama,Email,Telepon,Event,Tanggal Daftar,Status,Status Pembayaran\n" +
-      filteredParticipants.map(p => 
-        `${p.name},${p.email},${p.phone},${p.eventName},${p.registrationDate},${getStatusText(p.status)},${getPaymentStatusText(p.paymentStatus)}`
-      ).join("\n");
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "participants.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportData = async () => {
+    if (!selectedEventId || selectedEventId === 'all') {
+      alert('Pilih event terlebih dahulu untuk export data!');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/organizer/events/${selectedEventId}/participants/export`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `participants_event_${selectedEventId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Gagal export data!');
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Gagal export data!');
+    }
   };
 
   // Statistics
   const totalParticipants = participants.length;
-  const attendedParticipants = participants.filter(p => p.status === 'attended').length;
-  const registeredParticipants = participants.filter(p => p.status === 'registered').length;
+  const attendedParticipants = participants.filter(p => p.is_attendance_verified).length;
+  const registeredParticipants = participants.filter(p => p.attendance_status === 'pending').length;
   const attendanceRate = totalParticipants > 0 ? (attendedParticipants / totalParticipants) * 100 : 0;
 
   return (
@@ -294,14 +350,14 @@ const OrganizerParticipants: React.FC = () => {
             <FormControl sx={{ minWidth: 200 }}>
               <InputLabel>Event</InputLabel>
               <Select
-                value={eventFilter}
-                onChange={(e) => setEventFilter(e.target.value)}
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
                 label="Event"
               >
-                <MenuItem value="all">Semua Event</MenuItem>
-                {events.map(event => (
-                  <MenuItem key={event.id} value={event.id.toString()}>
-                    {event.name}
+                <MenuItem value="all">Pilih Event</MenuItem>
+                {events.map((event, index) => (
+                  <MenuItem key={event.id || `event-${index}`} value={event.id?.toString() || ''}>
+                    {event.title}
                   </MenuItem>
                 ))}
               </Select>
@@ -329,7 +385,12 @@ const OrganizerParticipants: React.FC = () => {
             Daftar Peserta ({filteredParticipants.length})
           </Typography>
           
-          {filteredParticipants.length === 0 ? (
+          {loading ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <CircularProgress />
+              <Typography sx={{ mt: 2 }}>Memuat data...</Typography>
+            </Box>
+          ) : filteredParticipants.length === 0 ? (
             // EMPTY STATE - Belum ada peserta yang mendaftar
             <Box sx={{ 
               textAlign: 'center', 
@@ -368,7 +429,7 @@ const OrganizerParticipants: React.FC = () => {
                     <TableCell><strong>Event</strong></TableCell>
                     <TableCell><strong>Tanggal Daftar</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
-                    <TableCell><strong>Pembayaran</strong></TableCell>
+                    <TableCell><strong>Kehadiran</strong></TableCell>
                     <TableCell><strong>Sertifikat</strong></TableCell>
                     <TableCell><strong>Aksi</strong></TableCell>
                   </TableRow>
@@ -390,29 +451,31 @@ const OrganizerParticipants: React.FC = () => {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography fontWeight="medium">{participant.eventName}</Typography>
+                      <Typography fontWeight="medium">
+                        {events.find(e => e.id?.toString() === selectedEventId)?.title || '-'}
+                      </Typography>
                     </TableCell>
                     <TableCell>
-                      {new Date(participant.registrationDate).toLocaleDateString('id-ID')}
+                      {new Date(participant.registration_date).toLocaleDateString('id-ID')}
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={getStatusText(participant.status)} 
-                        color={getStatusColor(participant.status) as any}
+                        label={getStatusText(participant.attendance_status)} 
+                        color={getStatusColor(participant.attendance_status) as any}
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={getPaymentStatusText(participant.paymentStatus)} 
-                        color={getPaymentStatusColor(participant.paymentStatus) as any}
+                        label={participant.is_attendance_verified ? 'Hadir' : 'Belum Hadir'} 
+                        color={participant.is_attendance_verified ? 'success' : 'warning'}
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={participant.certificateIssued ? 'Diterbitkan' : 'Belum'} 
-                        color={participant.certificateIssued ? 'success' : 'default'}
+                        label={participant.has_certificate ? 'Diterbitkan' : 'Belum'} 
+                        color={participant.has_certificate ? 'success' : 'default'}
                         size="small"
                       />
                     </TableCell>
@@ -432,7 +495,7 @@ const OrganizerParticipants: React.FC = () => {
                         >
                           <EmailIcon />
                         </IconButton>
-                        {participant.status === 'registered' && (
+                        {participant.attendance_status === 'pending' && (
                           <IconButton 
                             size="small" 
                             onClick={() => handleUpdateStatus(participant.id, 'attended')}
@@ -479,35 +542,37 @@ const OrganizerParticipants: React.FC = () => {
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">Event</Typography>
-                  <Typography>{selectedParticipant.eventName}</Typography>
+                  <Typography>
+                    {events.find(e => e.id?.toString() === selectedEventId)?.title || '-'}
+                  </Typography>
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">Tanggal Pendaftaran</Typography>
                   <Typography>
-                    {new Date(selectedParticipant.registrationDate).toLocaleDateString('id-ID')}
+                    {new Date(selectedParticipant.registration_date).toLocaleDateString('id-ID')}
                   </Typography>
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">Status Kehadiran</Typography>
                   <Chip 
-                    label={getStatusText(selectedParticipant.status)} 
-                    color={getStatusColor(selectedParticipant.status) as any}
+                    label={getStatusText(selectedParticipant.attendance_status)} 
+                    color={getStatusColor(selectedParticipant.attendance_status) as any}
                     size="small"
                   />
                 </Box>
                 <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Status Pembayaran</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">Kehadiran</Typography>
                   <Chip 
-                    label={getPaymentStatusText(selectedParticipant.paymentStatus)} 
-                    color={getPaymentStatusColor(selectedParticipant.paymentStatus) as any}
+                    label={selectedParticipant.is_attendance_verified ? 'Sudah Hadir' : 'Belum Hadir'} 
+                    color={selectedParticipant.is_attendance_verified ? 'success' : 'warning'}
                     size="small"
                   />
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">Sertifikat</Typography>
                   <Chip 
-                    label={selectedParticipant.certificateIssued ? 'Sudah Diterbitkan' : 'Belum Diterbitkan'} 
-                    color={selectedParticipant.certificateIssued ? 'success' : 'default'}
+                    label={selectedParticipant.has_certificate ? 'Sudah Diterbitkan' : 'Belum Diterbitkan'} 
+                    color={selectedParticipant.has_certificate ? 'success' : 'default'}
                     size="small"
                   />
                 </Box>

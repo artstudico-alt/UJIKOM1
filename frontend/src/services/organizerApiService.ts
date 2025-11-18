@@ -55,7 +55,7 @@ export interface OrganizerEvent {
   image?: string; // Processed image URL from backend
   flyer_path?: string; // Path to uploaded flyer
   flyer?: File;
-  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'cancelled';
+  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'cancelled' | 'ongoing' | 'completed';
   organizer_type?: 'organizer' | 'admin';
   created_at?: string;
   updated_at?: string;
@@ -164,8 +164,8 @@ class OrganizerApiService {
         data: events,
       };
     } catch (error: any) {
-      console.warn('Public API not available, using localStorage fallback:', error);
-      // Only use localStorage as last resort if public API also fails
+      console.error('❌ Public API failed:', error);
+      // NO localStorage fallback - 100% database only
       throw new Error(error.response?.data?.message || 'Failed to fetch public events');
     }
   }

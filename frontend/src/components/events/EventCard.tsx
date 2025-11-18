@@ -33,6 +33,8 @@ interface Event {
   status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'ongoing' | 'completed' | 'cancelled' | 'rejected';
   is_user_registered?: boolean;
   organizer?: string; // Nama penyelenggara - TAMPIL DI PUBLIK
+  registration_deadline?: string; // Deadline registrasi
+  date?: string; // Tanggal event
 }
 
 interface EventCardProps {
@@ -65,6 +67,71 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
       imageError: imageError
     });
   }, [event.id, event.image, imageError]);
+
+  // Check if registration is still open
+  const isRegistrationOpen = () => {
+    // If event is completed or cancelled, registration is closed
+    if (event.status === 'completed' || event.status === 'cancelled' || event.status === 'rejected') {
+      return false;
+    }
+    
+    const now = new Date();
+    
+    // Check if event has started (date + start time)
+    if (event.date || event.formattedDate) {
+      const eventDateStr = event.date || event.formattedDate;
+      const eventStartTime = event.start_time || '00:00';
+      
+      // Combine date and time
+      const [hours, minutes] = eventStartTime.split(':').map(Number);
+      const eventStartDateTime = new Date(eventDateStr);
+      eventStartDateTime.setHours(hours, minutes, 0, 0);
+      
+      // Registration closes when event starts
+      if (now >= eventStartDateTime) {
+        return false;
+      }
+    }
+    
+    // If registration deadline is set, check if it has passed
+    if (event.registration_deadline) {
+      const deadline = new Date(event.registration_deadline);
+      if (now > deadline) {
+        return false;
+      }
+    }
+    
+    // For published events, registration is open
+    return event.status === 'published';
+  };
+
+  // Get registration status message
+  const getRegistrationMessage = () => {
+    const now = new Date();
+    
+    if (event.date || event.formattedDate) {
+      const eventDateStr = event.date || event.formattedDate;
+      const eventStartTime = event.start_time || '00:00';
+      
+      // Combine date and time
+      const [hours, minutes] = eventStartTime.split(':').map(Number);
+      const eventStartDateTime = new Date(eventDateStr);
+      eventStartDateTime.setHours(hours, minutes, 0, 0);
+      
+      if (now >= eventStartDateTime) {
+        return 'Pendaftaran ditutup - Event sudah dimulai';
+      }
+    }
+    
+    if (event.registration_deadline) {
+      const deadline = new Date(event.registration_deadline);
+      if (now > deadline) {
+        return 'Pendaftaran ditutup';
+      }
+    }
+    
+    return null;
+  };
 
   const getStatusChip = () => {
     switch (event.status) {
@@ -213,22 +280,23 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
             <Visibility sx={{ fontSize: '1.2rem' }} />
           </Button>
         </Tooltip>
-        {onRegister && !event.is_user_registered && event.status === 'published' && (
-          isAuthenticated ? (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => onRegister(event.id)}
-              sx={{ 
-                flex: 1,
-                background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 50%, #2196f3 100%)',
-                color: 'white',
-                fontWeight: 600,
-                fontSize: '0.875rem',
-                py: 1.2,
-                borderRadius: 2,
-                border: '2px solid rgba(156, 39, 176, 0.3)',
-                boxShadow: '0 4px 15px rgba(156, 39, 176, 0.3)',
+        {onRegister && !event.is_user_registered && (
+          isRegistrationOpen() ? (
+            isAuthenticated ? (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => onRegister(event.id)}
+                sx={{ 
+                  flex: 1,
+                  background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 50%, #2196f3 100%)',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  py: 1.2,
+                  borderRadius: 2,
+                  border: '2px solid rgba(156, 39, 176, 0.3)',
+                  boxShadow: '0 4px 15px rgba(156, 39, 176, 0.3)',
                 position: 'relative',
                 overflow: 'hidden',
                 '&::before': {
@@ -308,6 +376,36 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Login sx={{ fontSize: '1.1rem' }} />
                     <Typography sx={{ fontWeight: 600 }}>Login untuk Daftar</Typography>
+                  </Box>
+                </Button>
+              </span>
+            </Tooltip>
+          )
+          ) : (
+            <Tooltip 
+              title={getRegistrationMessage() || "Pendaftaran belum dibuka"}
+              arrow
+              placement="top"
+            >
+              <span style={{ flex: 1 }}>
+                <Button
+                  variant="contained"
+                  disabled
+                  sx={{ 
+                    flex: 1,
+                    width: '100%',
+                    background: '#9e9e9e',
+                    color: 'white',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    py: 1.2,
+                    borderRadius: 2,
+                    cursor: 'not-allowed',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <HourglassEmpty sx={{ fontSize: '1.1rem' }} />
+                    <Typography sx={{ fontWeight: 600 }}>Belum Dibuka</Typography>
                   </Box>
                 </Button>
               </span>

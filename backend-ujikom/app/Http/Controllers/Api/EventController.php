@@ -27,6 +27,10 @@ class EventController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
+            \Log::info('Public events request', [
+                'params' => $request->all()
+            ]);
+
             $query = Event::with(['creator', 'eventParticipants'])
                 ->where('status', 'published')
                 ->where('is_active', true)
@@ -88,6 +92,14 @@ class EventController extends Controller
             }
 
             $events = $query->paginate($request->get('per_page', 12));
+
+            \Log::info('Public events response', [
+                'total_events' => $events->total(),
+                'current_page' => $events->currentPage(),
+                'per_page' => $events->perPage(),
+                'event_ids' => $events->pluck('id')->toArray(),
+                'event_titles' => $events->pluck('title')->toArray()
+            ]);
 
             return response()->json([
                 'status' => 'success',

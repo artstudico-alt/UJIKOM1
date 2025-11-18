@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import About from './pages/About';
 import Contact from './pages/Contact';
 import Profile from './pages/Profile';
+import OrganizerProfile from './pages/OrganizerProfile';
 import Events from './pages/Events';
 import EventDetail from './components/events/EventDetail';
 import EventForm from './components/events/EventForm';
@@ -27,6 +28,7 @@ import Certificates from './components/admin/Certificates';
 import Reports from './components/admin/Reports';
 import Settings from './components/admin/Settings';
 import EventManagement from './components/admin/EventManagement';
+import AdminEventManagement from './pages/AdminEventManagement';
 import PublicLayout from './layouts/PublicLayout';
 import AuthLayout from './layouts/AuthLayout';
 
@@ -334,9 +336,11 @@ const AppRoutes: React.FC = () => {
 
       {/* Public Event Routes */}
       <Route path="/events" element={<PublicLayout><Events /></PublicLayout>} />
-      <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
+      <Route path="/events/:id" element={<PublicLayout><EventDetail /></PublicLayout>} />
       <Route path="/events/:id/register" element={<PublicLayout><EventRegistration /></PublicLayout>} />
+      <Route path="/events/:id/register/success" element={<PublicLayout><RegistrationSuccess /></PublicLayout>} />
       <Route path="/registration-success" element={<PublicLayout><RegistrationSuccess /></PublicLayout>} />
+      <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
       
       {/* Debug Route - Accessible without authentication */}
       <Route path="/debug/admin" element={<PublicLayout><AdminDebug /></PublicLayout>} />
@@ -459,11 +463,34 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
+        path="/admin/profile"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <OrganizerProfile />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      <Route
         path="/admin/events"
         element={
           <AdminRoute>
             <AdminLayout>
-              <EventManagement />
+              <AdminEventManagement />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      {/* Admin Create Event - Same form as EO (ONLY CREATE uses separate form) */}
+      <Route
+        path="/admin/events/create"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <EventForm isCreate={true} isOrganizer={false} />
             </AdminLayout>
           </AdminRoute>
         }
@@ -474,18 +501,7 @@ const AppRoutes: React.FC = () => {
         element={
           <AdminRoute>
             <AdminLayout>
-              <EventForm isCreate={true} />
-            </AdminLayout>
-          </AdminRoute>
-        }
-      />
-
-      <Route
-        path="/admin/events/:id/edit"
-        element={
-          <AdminRoute>
-            <AdminLayout>
-              <EventForm isEdit={true} />
+              <EventForm isCreate={true} isOrganizer={false} />
             </AdminLayout>
           </AdminRoute>
         }
@@ -583,6 +599,18 @@ const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Create Event Routes - Support both URL patterns */}
+      <Route
+        path="/organizer/events/create"
+        element={
+          <OrganizerRoute>
+            <OrganizerLayout>
+              <EventForm isCreate={true} isOrganizer={true} />
+            </OrganizerLayout>
+          </OrganizerRoute>
+        }
+      />
+
       <Route
         path="/organizer/create-event"
         element={
@@ -594,12 +622,47 @@ const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Edit Event Routes - Support both URL patterns */}
+      <Route
+        path="/organizer/events/edit/:id"
+        element={
+          <OrganizerRoute>
+            <OrganizerLayout>
+              <EventForm isEdit={true} isOrganizer={true} />
+            </OrganizerLayout>
+          </OrganizerRoute>
+        }
+      />
+
       <Route
         path="/organizer/edit-event/:id"
         element={
           <OrganizerRoute>
             <OrganizerLayout>
               <EventForm isEdit={true} isOrganizer={true} />
+            </OrganizerLayout>
+          </OrganizerRoute>
+        }
+      />
+
+      {/* View Event Detail */}
+      <Route
+        path="/organizer/events/:id"
+        element={
+          <OrganizerRoute>
+            <OrganizerLayout>
+              <EventDetail />
+            </OrganizerLayout>
+          </OrganizerRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/profile"
+        element={
+          <OrganizerRoute>
+            <OrganizerLayout>
+              <OrganizerProfile />
             </OrganizerLayout>
           </OrganizerRoute>
         }

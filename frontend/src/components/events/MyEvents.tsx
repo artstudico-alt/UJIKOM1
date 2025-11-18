@@ -324,31 +324,58 @@ const MyEvents: React.FC = () => {
                           Detail
                         </Button>
                         
-                        {/* Daftar Hadir Button - Show if attendance is open and user hasn't attended */}
-                        {((event as any).is_attendance_open || eventStatus.label === 'Sedang Berlangsung') && 
-                         !(event as any).is_attendance_verified && (
-                          <Button
-                            variant="contained"
-                            color="success"
-                            startIcon={<QrCode />}
-                            fullWidth
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/events/${event.id}/attendance`);
-                            }}
-                            sx={{
-                              background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #388e3c, #689f38)',
-                                transform: 'translateY(-1px)',
-                                boxShadow: '0 4px 12px rgba(76, 175, 80, 0.4)',
-                              },
-                              transition: 'all 0.3s ease',
-                            }}
-                          >
-                            Daftar Hadir
-                          </Button>
-                        )}
+                        {/* Daftar Hadir Button - Active only on event day after start time */}
+                        {(() => {
+                          const now = new Date();
+                          const eventDate = new Date(event.date);
+                          const eventStartTime = new Date(event.date + ' ' + event.start_time);
+                          
+                          // Check if today is the event day
+                          const isEventDay = now.toDateString() === eventDate.toDateString();
+                          
+                          // Check if current time is after event start time
+                          const isAfterStartTime = now >= eventStartTime;
+                          
+                          // Button is active if: it's event day AND after start time AND user hasn't attended
+                          const isActive = isEventDay && isAfterStartTime && !(event as any).is_attendance_verified;
+                          
+                          // Show button if user hasn't attended yet
+                          if (!(event as any).is_attendance_verified) {
+                            return (
+                              <Button
+                                variant="contained"
+                                color="success"
+                                startIcon={<QrCode />}
+                                fullWidth
+                                disabled={!isActive}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isActive) {
+                                    navigate(`/events/${event.id}/attendance`);
+                                  }
+                                }}
+                                sx={{
+                                  background: isActive 
+                                    ? 'linear-gradient(135deg, #4caf50, #8bc34a)' 
+                                    : '#e0e0e0',
+                                  color: isActive ? 'white' : '#9e9e9e',
+                                  '&:hover': isActive ? {
+                                    background: 'linear-gradient(135deg, #388e3c, #689f38)',
+                                    transform: 'translateY(-1px)',
+                                    boxShadow: '0 4px 12px rgba(76, 175, 80, 0.4)',
+                                  } : {},
+                                  transition: 'all 0.3s ease',
+                                  cursor: isActive ? 'pointer' : 'not-allowed',
+                                }}
+                              >
+                                {isActive ? 'Daftar Hadir' : 
+                                 !isEventDay ? 'Belum Hari H' : 
+                                 !isAfterStartTime ? 'Belum Waktunya' : 'Daftar Hadir'}
+                              </Button>
+                            );
+                          }
+                          return null;
+                        })()}
                         
                         {/* Certificate Button */}
                         {(event as any).has_certificate && (

@@ -74,6 +74,23 @@ const Attendance: React.FC = () => {
     navigate('/events');
   };
 
+  // Check if attendance is open (event has started)
+  const isAttendanceOpen = () => {
+    if (!event) return false;
+    
+    const now = new Date();
+    const eventDateStr = event.date;
+    const eventStartTime = event.start_time || '00:00';
+    
+    // Combine date and time
+    const [hours, minutes] = eventStartTime.split(':').map(Number);
+    const eventStartDateTime = new Date(eventDateStr);
+    eventStartDateTime.setHours(hours, minutes, 0, 0);
+    
+    // Attendance opens when event starts
+    return now >= eventStartDateTime;
+  };
+
   if (loading) {
     return (
       <Box sx={{ 
@@ -177,14 +194,33 @@ const Attendance: React.FC = () => {
         </Box>
 
         {/* Attendance Form */}
-        <AttendanceForm
-          eventId={event.id}
-          eventTitle={event.title}
-          eventDate={event.date}
-          eventTime={`${event.start_time} - ${event.end_time}`}
-          eventLocation={event.location}
-          onSuccess={handleAttendanceSuccess}
-        />
+        {isAttendanceOpen() ? (
+          <AttendanceForm
+            eventId={event.id}
+            eventTitle={event.title}
+            eventDate={event.date}
+            eventTime={`${event.start_time} - ${event.end_time}`}
+            eventLocation={event.location}
+            onSuccess={handleAttendanceSuccess}
+          />
+        ) : (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Daftar Hadir Belum Dibuka
+            </Typography>
+            <Typography variant="body2">
+              Daftar hadir akan dibuka pada saat event dimulai:
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 600, mt: 1 }}>
+              {new Date(event.date).toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })} pukul {event.start_time}
+            </Typography>
+          </Alert>
+        )}
 
         {/* Success Message */}
         {attendanceSuccess && (

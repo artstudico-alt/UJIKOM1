@@ -223,13 +223,32 @@ class AdminApiService {
   /**
    * Reject event
    */
-  async rejectEvent(eventId: number, reason?: string): Promise<ApiResponse<AdminEvent>> {
+  async rejectEvent(eventId: number, reason: string): Promise<ApiResponse<AdminEvent>> {
     try {
+      console.log('📤 AdminApiService: Rejecting event', {
+        eventId,
+        reason,
+        reasonLength: reason?.length,
+        payload: { rejection_reason: reason }
+      });
+      
+      // Validate reason before sending
+      if (!reason || reason.trim().length === 0) {
+        throw new Error('Alasan penolakan tidak boleh kosong');
+      }
+      
       const response = await apiClient.post(`/admin/events/${eventId}/reject`, {
         rejection_reason: reason
       });
+      
+      console.log('✅ AdminApiService: Event rejected successfully', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ AdminApiService: Reject event failed', {
+        eventId,
+        error: error.response?.data,
+        message: error.message
+      });
       throw new Error(error.response?.data?.message || 'Failed to reject event');
     }
   }
@@ -259,6 +278,41 @@ class AdminApiService {
   }
 
   /**
+   * Create event (Admin)
+   */
+  async createEvent(eventData: any): Promise<ApiResponse<AdminEvent>> {
+    try {
+      console.log('📤 AdminApiService: Creating event', eventData);
+      
+      // Use FormData if there's a file
+      let payload: any;
+      let headers: any = {};
+      
+      if (eventData.flyer instanceof File) {
+        payload = new FormData();
+        Object.keys(eventData).forEach(key => {
+          if (eventData[key] !== undefined && eventData[key] !== null) {
+            payload.append(key, eventData[key]);
+          }
+        });
+        headers['Content-Type'] = 'multipart/form-data';
+      } else {
+        payload = eventData;
+      }
+      
+      const response = await apiClient.post('/admin/events', payload, { headers });
+      console.log('✅ AdminApiService: Event created successfully', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ AdminApiService: Create event failed', {
+        error: error.response?.data,
+        message: error.message
+      });
+      throw new Error(error.response?.data?.message || 'Failed to create event');
+    }
+  }
+
+  /**
    * Update event
    */
   async updateEvent(eventId: number, eventData: Partial<AdminEvent>): Promise<ApiResponse<AdminEvent>> {
@@ -267,6 +321,29 @@ class AdminApiService {
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to update event');
+    }
+  }
+
+  /**
+   * Get chart data for dashboard
+   */
+  async getChartData(): Promise<{
+    eventsPerMonth: Array<{ month: string; count: number }>;
+    participantsPerMonth: Array<{ month: string; count: number }>;
+    topEvents: Array<{ name: string; participants: number }>;
+  }> {
+    try {
+      const response = await apiClient.get('/admin/dashboard/charts');
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Failed to fetch chart data:', error);
+      // Return default data if API fails
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return {
+        eventsPerMonth: months.map(month => ({ month, count: 0 })),
+        participantsPerMonth: months.map(month => ({ month, count: 0 })),
+        topEvents: [],
+      };
     }
   }
 }

@@ -20,6 +20,7 @@ class Event extends Model
         'end_time',
         'location',
         'flyer_path',
+        'image_url',
         'certificate_template_path',
         'max_participants',
         'is_active',

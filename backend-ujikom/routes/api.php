@@ -18,6 +18,20 @@ Route::get('/events', [EventController::class, 'index']);
 Route::get('/events/search', [EventController::class, 'search']);
 Route::get('/events/{id}', [EventController::class, 'show']);
 
+// Serve storage files (images) via API
+Route::get('/storage/{path}', function ($path) {
+    $filePath = storage_path('app/public/' . $path);
+
+    if (!file_exists($filePath)) {
+        return response()->json(['error' => 'File not found'], 404);
+    }
+
+    return response()->file($filePath, [
+        'Content-Type' => mime_content_type($filePath),
+        'Cache-Control' => 'public, max-age=31536000',
+    ]);
+})->where('path', '.*');
+
 // Auth Routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -73,7 +87,7 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
 
         // Admin Dashboard
         Route::get('/admin/dashboard/stats', [App\Http\Controllers\Admin\DashboardController::class, 'statistics']);
-        Route::get('/admin/dashboard/chart-data', [App\Http\Controllers\Admin\DashboardController::class, 'chartData']);
+        Route::get('/admin/dashboard/charts', [App\Http\Controllers\Admin\DashboardController::class, 'chartData']);
 
         // Export Data
         Route::get('/admin/export/events', [App\Http\Controllers\Admin\DashboardController::class, 'exportEvents']);
@@ -92,6 +106,9 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         // Admin Event Management Routes
         Route::get('/admin/events', [AdminEventApprovalController::class, 'getAllEvents']);
         Route::get('/admin/events/recent', [AdminEventApprovalController::class, 'getRecentEvents']);
+        Route::post('/admin/events', [AdminEventApprovalController::class, 'createEvent']);
+        Route::put('/admin/events/{event}', [AdminEventApprovalController::class, 'updateEvent']);
+        Route::delete('/admin/events/{event}', [AdminEventApprovalController::class, 'deleteEvent']);
 
         // Admin Event Approval Routes
         Route::get('/admin/events/pending', [AdminEventApprovalController::class, 'getPendingEvents']);
@@ -158,6 +175,10 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         Route::get('/events/{event}', [OrganizerEventController::class, 'show']); // ✅ Dynamic route AFTER
         Route::put('/events/{event}', [OrganizerEventController::class, 'update']);
         Route::delete('/events/{event}', [OrganizerEventController::class, 'destroy']);
+
+        // Participants Management
+        Route::get('/events/{eventId}/participants', [OrganizerEventController::class, 'getParticipants']);
+        Route::get('/events/{eventId}/participants/export', [OrganizerEventController::class, 'exportParticipants']);
     });
 });
 

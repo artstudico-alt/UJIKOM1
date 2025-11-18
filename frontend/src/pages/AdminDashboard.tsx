@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Container,
@@ -27,6 +28,7 @@ import {
   Alert,
   Avatar,
   Divider,
+  TextField,
   LinearProgress
 } from '@mui/material';
 import {
@@ -45,6 +47,7 @@ import {
   Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { adminApiService, DashboardStats as ApiDashboardStats, AdminEvent as ApiAdminEvent } from '../services/adminApiService';
+import DashboardCharts from '../components/admin/DashboardCharts';
 // eventService removed - now 100% using database API
 
 // Use interfaces from adminApiService
@@ -62,6 +65,7 @@ interface SnackbarState {
 const AdminDashboard: React.FC = () => {
   // Hooks
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   
   // State declarations
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
@@ -85,6 +89,17 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
+  // Chart data state
+  const [chartData, setChartData] = useState<{
+    eventsPerMonth: Array<{ month: string; count: number }>;
+    participantsPerMonth: Array<{ month: string; count: number }>;
+    topEvents: Array<{ name: string; participants: number }>;
+  }>({
+    eventsPerMonth: [],
+    participantsPerMonth: [],
+    topEvents: [],
+  });
+  
   // Dialog states
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
@@ -93,6 +108,7 @@ const AdminDashboard: React.FC = () => {
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [selectedEventForReview, setSelectedEventForReview] = useState<AdminEvent | null>(null);
   
   // Snackbar state
@@ -105,7 +121,34 @@ const AdminDashboard: React.FC = () => {
   // Load initial data with auto-refresh
   useEffect(() => {
     console.log('🎬 Admin Dashboard: Component mounted');
-    loadDashboardData();
+    console.log('🔐 Auth status:', { isAuthenticated, authLoading, userRole: user?.role });
+    
+    // Wait for auth to finish loading
+    if (authLoading) {
+      console.log('⏳ Waiting for auth to complete...');
+      return;
+    }
+    
+    // Check if user is authenticated and is admin
+    if (!isAuthenticated) {
+      console.log('❌ User not authenticated, redirecting to login...');
+      navigate('/login');
+      return;
+    }
+    
+    if (user?.role !== 'admin') {
+      console.log('❌ User not admin, redirecting to home...');
+      navigate('/');
+      return;
+    }
+    
+    console.log('✅ Admin authenticated, loading dashboard...');
+    
+    // Add 300ms delay to ensure token is ready
+    const loadTimer = setTimeout(() => {
+      console.log('🔄 Starting dashboard load after auth confirmation...');
+      loadDashboardData();
+    }, 300);
     
     // Auto-refresh setiap 10 detik
     const refreshInterval = setInterval(() => {
@@ -134,12 +177,13 @@ const AdminDashboard: React.FC = () => {
     window.addEventListener('eventDataChanged', handleEventDataChanged);
     
     return () => {
+      clearTimeout(loadTimer);
       clearInterval(refreshInterval);
       window.removeEventListener('eventCreated', handleEventCreated);
       window.removeEventListener('eventStatusChanged', handleEventStatusChanged as EventListener);
       window.removeEventListener('eventDataChanged', handleEventDataChanged);
     };
-  }, []);
+  }, [isAuthenticated, authLoading, user]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -149,12 +193,35 @@ const AdminDashboard: React.FC = () => {
       // Load dashboard statistics with better error handling
       let stats: DashboardStats;
       try {
+        console.log('🌐 Admin Dashboard: Calling getDashboardStats API...');
         const apiStats = await adminApiService.getDashboardStats();
+        console.log('📦 Admin Dashboard: Raw API response:', apiStats);
+        
         stats = { ...apiStats, systemHealth: 95 };
         console.log('✅ Admin Dashboard: Stats loaded from API:', stats);
+        console.log('📊 Stats breakdown:', {
+          total_users: stats.total_users,
+          total_events: stats.total_events,
+          total_participants: stats.total_participants,
+          revenue_this_month: stats.revenue_this_month
+        });
+        
         setDashboardStats(stats);
-      } catch (statsError) {
+      } catch (statsError: any) {
         console.error('❌ Admin Dashboard: Failed to load stats from database:', statsError);
+        console.error('❌ Error details:', {
+          message: statsError.message,
+          response: statsError.response?.data,
+          status: statsError.response?.status
+        });
+        
+        // Show error to user
+        setSnackbar({
+          open: true,
+          message: `Gagal memuat statistik dashboard: ${statsError.message}`,
+          severity: 'error'
+        });
+        
         // No localStorage fallback - use empty stats
         stats = {
           total_users: 0,
@@ -167,12 +234,8 @@ const AdminDashboard: React.FC = () => {
           completed_events: 0,
           total_participants: 0,
           new_users_this_month: 0,
-          new_events_this_month: allLocalEvents.filter(e => {
-            const eventDate = new Date(e.createdAt || '');
-            const now = new Date();
-            return eventDate.getMonth() === now.getMonth() && eventDate.getFullYear() === now.getFullYear();
-          }).length,
-          revenue_this_month: allLocalEvents.reduce((sum, e) => sum + ((e.price || 0) * (e.currentParticipants || 0)), 0),
+          new_events_this_month: 0,
+          revenue_this_month: 0,
           systemHealth: 95
         };
         setDashboardStats(stats);
@@ -194,33 +257,8 @@ const AdminDashboard: React.FC = () => {
         }
       } catch (recentError) {
         console.error('❌ Admin Dashboard: Recent events API failed:', recentError);
-        // No localStorage fallback
+        // No localStorage fallback - 100% database now
         recentEventsData = [];
-          id: event.id,
-          title: event.name || event.title || '',
-          description: event.description || '',
-          date: event.eventDate || event.date || '',
-          start_time: event.startTime || '',
-          end_time: event.endTime || '',
-          location: event.location || '',
-          max_participants: event.maxParticipants || 0,
-          registration_deadline: event.registrationDate || '',
-          registration_date: event.registrationDate || '',
-          price: event.price || 0,
-          category: event.category || '',
-          organizer_name: event.organizer || event.organizerName || '',
-          organizer_email: event.organizerEmail || '',
-          organizer_contact: event.organizerContact || '',
-          status: 'published' as const,
-          image_url: event.image || '',
-          created_at: event.createdAt || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          submitted_at: event.submittedAt || new Date().toISOString(),
-          approved_at: event.approvedAt || new Date().toISOString(),
-          rejected_at: undefined,
-          is_active: true,
-          organizer_type: 'organizer' as const
-        }));
       }
       setRecentEvents(recentEventsData);
       
@@ -232,37 +270,21 @@ const AdminDashboard: React.FC = () => {
         console.log('✅ Admin Dashboard: Pending events loaded from API:', pendingEventsData.length);
       } catch (pendingError) {
         console.error('❌ Admin Dashboard: Pending events API failed:', pendingError);
-        console.warn('⚠️ Admin Dashboard: Using localStorage fallback...');
-        // Fallback to localStorage pending events
-        const localPendingEvents = eventService.getPendingEvents();
-        pendingEventsData = localPendingEvents.map(event => ({
-          id: event.id,
-          title: event.name || event.title || '',
-          description: event.description || '',
-          date: event.eventDate || event.date || '',
-          start_time: event.startTime || '',
-          end_time: event.endTime || '',
-          location: event.location || '',
-          max_participants: event.maxParticipants || 0,
-          registration_deadline: event.registrationDate || '',
-          registration_date: event.registrationDate || '',
-          price: event.price || 0,
-          category: event.category || '',
-          organizer_name: event.organizer || event.organizerName || '',
-          organizer_email: event.organizerEmail || '',
-          organizer_contact: event.organizerContact || '',
-          status: 'pending_approval' as const,
-          image_url: event.image || '',
-          created_at: event.createdAt || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          submitted_at: event.submittedAt || new Date().toISOString(),
-          approved_at: undefined,
-          rejected_at: undefined,
-          is_active: true,
-          organizer_type: 'organizer' as const
-        }));
+        // No localStorage fallback - 100% database now
+        pendingEventsData = [];
       }
       setPendingEvents(pendingEventsData);
+      
+      // Load chart data
+      try {
+        console.log('📊 Admin Dashboard: Loading chart data...');
+        const charts = await adminApiService.getChartData();
+        console.log('✅ Admin Dashboard: Chart data loaded:', charts);
+        setChartData(charts);
+      } catch (chartError) {
+        console.error('❌ Admin Dashboard: Chart data API failed:', chartError);
+        // Keep default empty chart data
+      }
       
       console.log('🔍 Admin Dashboard: Final loaded data:', {
         stats,
@@ -334,7 +356,8 @@ const AdminDashboard: React.FC = () => {
     
     setLoading(true);
     try {
-      await eventService.deleteEvent(selectedEvent.id);
+      await adminApiService.deleteEvent(selectedEvent.id);
+      console.log('✅ Admin: Event deleted via API');
       
       // Reload data
       await loadDashboardData();
@@ -369,19 +392,9 @@ const AdminDashboard: React.FC = () => {
     
     setLoading(true);
     try {
-      // Try API first
-      try {
-        await adminApiService.approveEvent(selectedEventForReview.id);
-        console.log('✅ Admin: Event approved via API');
-      } catch (apiError) {
-        console.warn('⚠️ Admin: API approval failed, trying localStorage:', apiError);
-        // Fallback to localStorage approval
-        const approvedEvent = eventService.approveEvent(selectedEventForReview.id);
-        if (!approvedEvent) {
-          throw new Error('Event not found in localStorage');
-        }
-        console.log('✅ Admin: Event approved via localStorage');
-      }
+      // Approve event via API
+      await adminApiService.approveEvent(selectedEventForReview.id);
+      console.log('✅ Admin: Event approved via API');
       
       // Reload dashboard data
       await loadDashboardData();
@@ -419,10 +432,32 @@ const AdminDashboard: React.FC = () => {
   const handleRejectEvent = async () => {
     if (!selectedEventForReview) return;
     
+    // Validate rejection reason
+    if (!rejectionReason || rejectionReason.trim().length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'Alasan penolakan harus diisi',
+        severity: 'error'
+      });
+      return;
+    }
+
+    if (rejectionReason.trim().length < 10) {
+      setSnackbar({
+        open: true,
+        message: 'Alasan penolakan minimal 10 karakter',
+        severity: 'error'
+      });
+      return;
+    }
+    
     setLoading(true);
     try {
-      // Reject event via API
-      await adminApiService.rejectEvent(selectedEventForReview.id);
+      // Reject event via API with reason
+      await adminApiService.rejectEvent(
+        selectedEventForReview.id,
+        rejectionReason.trim()
+      );
       await loadDashboardData();
       
       setSnackbar({
@@ -434,6 +469,7 @@ const AdminDashboard: React.FC = () => {
       setRejectDialogOpen(false);
       setReviewDialogOpen(false);
       setSelectedEventForReview(null);
+      setRejectionReason(''); // Reset reason
     } catch (error) {
       console.error('Failed to reject event:', error);
       setSnackbar({
@@ -698,6 +734,7 @@ const AdminDashboard: React.FC = () => {
                             variant="outlined"
                             onClick={() => {
                               setSelectedEventForReview(event);
+                              setRejectionReason(''); // Reset reason
                               setRejectDialogOpen(true);
                             }}
                             sx={{
@@ -831,6 +868,13 @@ const AdminDashboard: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Dashboard Charts */}
+        <DashboardCharts
+          eventsPerMonth={chartData.eventsPerMonth}
+          participantsPerMonth={chartData.participantsPerMonth}
+          topEvents={chartData.topEvents}
+        />
 
         {/* Actions Menu */}
         <Menu
@@ -1009,6 +1053,7 @@ const AdminDashboard: React.FC = () => {
             </Button>
             <Button 
               onClick={() => {
+                setRejectionReason(''); // Reset reason
                 setRejectDialogOpen(true);
               }}
               color="error"
@@ -1066,36 +1111,66 @@ const AdminDashboard: React.FC = () => {
         </Dialog>
 
         {/* Reject Confirmation Dialog */}
-        <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)}>
+        <Dialog 
+          open={rejectDialogOpen} 
+          onClose={() => !loading && setRejectDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
           <DialogTitle>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <CancelIcon sx={{ color: '#ef4444' }} />
-              Konfirmasi Penolakan
+              Konfirmasi Penolakan Event
             </Box>
           </DialogTitle>
           <DialogContent>
             <Typography variant="body1" gutterBottom>
               Apakah Anda yakin ingin menolak event:
             </Typography>
-            <Typography variant="h6" fontWeight="bold" sx={{ color: '#ef4444', mt: 1 }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ color: '#ef4444', mt: 1, mb: 2 }}>
               "{selectedEventForReview?.title}"
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Event yang ditolak tidak akan dipublikasikan dan organizer akan mendapat notifikasi.
             </Typography>
+            
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="Alasan Penolakan *"
+              placeholder="Jelaskan alasan penolakan event ini (minimal 10 karakter)"
+              value={rejectionReason}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRejectionReason(e.target.value)}
+              disabled={loading}
+              required
+              error={rejectionReason.length > 0 && rejectionReason.length < 10}
+              helperText={
+                rejectionReason.length > 0 && rejectionReason.length < 10
+                  ? 'Alasan penolakan minimal 10 karakter'
+                  : 'Alasan ini akan dikirim ke organizer'
+              }
+              sx={{ mt: 2 }}
+            />
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setRejectDialogOpen(false)}>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button 
+              onClick={() => {
+                setRejectDialogOpen(false);
+                setRejectionReason('');
+              }}
+              disabled={loading}
+            >
               Batal
             </Button>
             <Button 
               onClick={handleRejectEvent}
               color="error" 
               variant="contained"
-              disabled={loading}
+              disabled={loading || !rejectionReason || rejectionReason.trim().length < 10}
               startIcon={loading ? <CircularProgress size={16} /> : <CancelIcon />}
             >
-              {loading ? 'Memproses...' : 'Ya, Tolak'}
+              {loading ? 'Menolak...' : 'Tolak Event'}
             </Button>
           </DialogActions>
         </Dialog>

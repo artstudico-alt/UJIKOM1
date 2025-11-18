@@ -52,7 +52,7 @@ interface RegistrationFormData {
 }
 
 const EventRegistration: React.FC = () => {
-  const { eventId } = useParams<{ eventId: string }>();
+  const { id: eventId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [formData, setFormData] = useState<RegistrationFormData>({
@@ -94,33 +94,104 @@ const EventRegistration: React.FC = () => {
     { code: '+91', name: 'India', flag: '🇮🇳' },
   ];
 
-  // Fetch event details
+  // Fetch event details using direct fetch for debugging
   const { data: eventData, isLoading: eventLoading, error: eventError } = useQuery({
     queryKey: ['event', eventId],
-    queryFn: () => eventService.getEventById(Number(eventId)),
+    queryFn: async () => {
+      console.log('🔍 EventRegistration: Fetching event ID:', eventId);
+      
+      // Validate event ID
+      const numericId = Number(eventId);
+      if (!eventId || isNaN(numericId) || numericId <= 0) {
+        console.error('❌ EventRegistration: Invalid event ID:', eventId);
+        throw new Error('Invalid event ID');
+      }
+      
+      try {
+        // Use fetch directly to bypass axios issues
+        const url = `http://localhost:8000/api/events/${numericId}`;
+        console.log('🌐 EventRegistration: Fetching from URL:', url);
+        
+        const fetchResponse = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log('📡 EventRegistration: Fetch response status:', fetchResponse.status);
+        console.log('📡 EventRegistration: Fetch response ok:', fetchResponse.ok);
+        
+        if (!fetchResponse.ok) {
+          throw new Error(`HTTP error! status: ${fetchResponse.status}`);
+        }
+        
+        const jsonData = await fetchResponse.json();
+        console.log('✅ EventRegistration: JSON data:', jsonData);
+        console.log('✅ EventRegistration: JSON data type:', typeof jsonData);
+        console.log('✅ EventRegistration: JSON data keys:', Object.keys(jsonData));
+        console.log('✅ EventRegistration: JSON data.data:', jsonData.data);
+        
+        // Return in the format expected by the component
+        return jsonData;
+        
+      } catch (error: any) {
+        console.error('❌ EventRegistration: Error fetching event:', error);
+        console.error('❌ EventRegistration: Error message:', error.message);
+        throw error;
+      }
+    },
     enabled: !!eventId,
+    retry: false, // Don't retry on 404
   });
 
   // Helper function to get correct image URL
   const getImageUrl = (flyerPath: string) => {
     if (!flyerPath) return '';
     
-    // If starts with 'storage/', remove it since we'll add it
+    console.log('📁 Original flyer path:', flyerPath);
+    
+    // Clean path - remove 'storage/' prefix if exists
     const cleanPath = flyerPath.startsWith('storage/') 
       ? flyerPath.substring(8) 
       : flyerPath;
     
-    // Construct full URL
-    return `http://localhost:8000/storage/${cleanPath}`;
+    // Use API endpoint to serve images (better CORS handling)
+    const url = `http://localhost:8000/api/storage/${cleanPath}`;
+    console.log('🔗 Using API storage URL:', url);
+    return url;
   };
 
   // Memoize the background image URL to prevent re-renders
   const backgroundImageUrl = useMemo(() => {
-    if (!eventData?.data?.flyer_path) {
+    console.log('🔄 useMemo triggered - Building background URL...');
+    console.log('🖼️ Event Data:', eventData);
+    console.log('🖼️ Flyer Path:', eventData?.data?.flyer_path);
+    console.log('🖼️ Image URL:', eventData?.data?.image_url);
+    
+    // Wait for event data to load
+    if (!eventData?.data) {
+      console.log('⏳ Event data not loaded yet, using gradient fallback');
       return 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)';
     }
-    return `url(${getImageUrl(eventData.data.flyer_path)}), linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)`;
-  }, [eventData?.data?.flyer_path]);
+    
+    // Try multiple image fields
+    const imagePath = eventData.data.flyer_path || eventData.data.image_url || eventData.data.image;
+    
+    if (!imagePath) {
+      console.log('⚠️ No image path found, using gradient fallback');
+      const fallback = 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)';
+      console.log('📐 Returning fallback:', fallback);
+      return fallback;
+    }
+    
+    const imageUrl = getImageUrl(imagePath);
+    console.log('✅ Final Image URL:', imageUrl);
+    const finalBg = `url("${imageUrl}"), linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)`;
+    console.log('🎨 Final background value:', finalBg);
+    return finalBg;
+  }, [eventData]);
 
   // Registration mutation
   const registerMutation = useMutation({
@@ -234,10 +305,12 @@ const EventRegistration: React.FC = () => {
 
   // Redirect to login if not authenticated
   useEffect(() => {
+    console.log('🔐 Auth check:', { isAuthenticated, user });
     if (!isAuthenticated) {
+      console.log('⚠️ Not authenticated, redirecting to login');
       navigate('/login');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, user]);
 
   if (eventLoading) {
     return (
@@ -247,13 +320,59 @@ const EventRegistration: React.FC = () => {
     );
   }
 
-  if (eventError || !eventData?.data) {
+  // Debug: Log the exact structure
+  console.log('🔍 EventRegistration: Full eventData structure:', eventData);
+  console.log('🔍 EventRegistration: eventData.data:', eventData?.data);
+  console.log('🔍 EventRegistration: eventError:', eventError);
+  console.log('🔍 EventRegistration: eventId from params:', eventId);
+  console.log('🔍 EventRegistration: eventLoading:', eventLoading);
+
+  if (eventError || !eventData) {
+    console.error('❌ EventRegistration: Error state:', {
+      eventError,
+      eventData,
+      hasEventData: !!eventData,
+      hasData: !!eventData?.data,
+      eventDataKeys: eventData ? Object.keys(eventData) : 'null',
+      eventId,
+      errorMessage: eventError?.message
+    });
+    
     return (
-      <Box sx={{ p: 4 }}>
-        <Alert severity="error">
-          Event tidak ditemukan atau terjadi kesalahan saat memuat data.
-        </Alert>
-      </Box>
+      <Container maxWidth="md" sx={{ py: 8 }}>
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Event tidak ditemukan
+            </Typography>
+            <Typography variant="body2">
+              {eventError?.message || 'Event yang Anda cari tidak tersedia atau telah dihapus.'}
+            </Typography>
+            {eventId && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 2, color: 'text.secondary' }}>
+                Event ID: {eventId}
+              </Typography>
+            )}
+            {eventError && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
+                Error: {eventError.message}
+              </Typography>
+            )}
+            {eventData && !eventData.data && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'warning.main' }}>
+                Debug: Response received but data structure unexpected
+              </Typography>
+            )}
+          </Alert>
+          <Button
+            variant="contained"
+            onClick={() => navigate('/events')}
+            sx={{ mt: 2 }}
+          >
+            Kembali ke Daftar Event
+          </Button>
+        </Paper>
+      </Container>
     );
   }
 
@@ -309,8 +428,8 @@ const EventRegistration: React.FC = () => {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  background: 'linear-gradient(135deg, rgba(0,0,0,0.3) 0%, rgba(156, 39, 176, 0.2) 50%, rgba(0,0,0,0.6) 100%)',
-                  backdropFilter: 'blur(1px)',
+                  background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.4) 100%)',
+                  backdropFilter: 'blur(0.5px)',
                 },
                 // Floating decorative elements
                 '&::after': {
@@ -366,7 +485,7 @@ const EventRegistration: React.FC = () => {
             fontWeight: 500,
             textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
           }}>
-            ✨ Platform Event Terpercaya
+            Platform Event Terpercaya
           </Typography>
         </Box>
 

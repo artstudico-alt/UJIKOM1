@@ -52,18 +52,20 @@ import {
   Info as InfoIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { eventService, Event } from '../services/eventService';
+import { useAuth } from '../contexts/AuthContext';
 import { organizerApiService } from '../services/organizerApiService';
-import { adminApiService } from '../services/adminApiService';
+import { adminApiService, AdminEvent } from '../services/adminApiService';
 
 const AdminEventManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const [tabValue, setTabValue] = useState(0);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -88,85 +90,77 @@ const AdminEventManagement: React.FC = () => {
     flyer: null as File | null
   });
 
-  // Load events from both API and localStorage
+  // Load events from database API
   useEffect(() => {
+    console.log('🎬 AdminEventManagement: Component mounted');
+    console.log('🔐 Auth status:', { isAuthenticated, authLoading, userRole: user?.role });
+    
+    // Wait for auth to finish loading
+    if (authLoading) {
+      console.log('⏳ Waiting for auth to complete...');
+      return;
+    }
+    
+    // Check if user is authenticated and is admin
+    if (!isAuthenticated) {
+      console.log('❌ User not authenticated, redirecting to login...');
+      navigate('/login');
+      return;
+    }
+    
+    if (user?.role !== 'admin') {
+      console.log('❌ User not admin, redirecting to home...');
+      navigate('/');
+      return;
+    }
+    
+    console.log('✅ Admin authenticated, loading events...');
+    
     const loadEvents = async () => {
-      console.log('🔄 AdminEventManagement: Loading events...');
+      console.log('🔄 AdminEventManagement: Loading events from database...');
+      setLoading(true);
 
       try {
-        // Load from API first (organizer events from database)
+        // Load from database API (100% database now)
         const apiEvents = await adminApiService.getAllEvents();
-        console.log('🔄 AdminEventManagement: API events:', apiEvents.data?.length || 0);
-
-        // Load from localStorage (admin events)
-        const localEvents = eventService.getAllEvents();
-        console.log('🔄 AdminEventManagement: Local events:', localEvents.length);
-
-        // Convert API events to Event format
-        const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
-          id: event.id,
-          name: event.title || '',
-          title: event.title || '',
-          description: event.description || '',
-          eventDate: event.date || '',
-          date: event.date || '',
-          startTime: event.start_time || '',
-          endTime: event.end_time || '',
-          location: event.location || '',
-          maxParticipants: event.max_participants || 0,
-          currentParticipants: event.participants_count || 0,
-          registrationDate: event.registration_deadline || '',
-          price: event.price || 0,
-          status: event.status as any || 'draft',
-          category: event.category || '',
-          organizer: event.organizer_name || '',
-          organizerName: event.organizer_name || '',
-          organizerEmail: event.organizer_email || '',
-          organizerContact: event.organizer_contact || '',
-          // Use processed image URL from backend EventResource first
-          image: event.image || event.image_url || '',
-          createdAt: event.created_at || '',
-          submittedAt: event.submitted_at || '',
-          approvedAt: event.approved_at || '',
-          rejectedAt: event.rejected_at || ''
-        }));
-
-        // Combine both sources
-        const allEvents = [...convertedApiEvents, ...localEvents];
-        console.log('🔄 AdminEventManagement: Total events:', allEvents.length);
-        setEvents(allEvents);
+        console.log('✅ AdminEventManagement: Loaded events:', apiEvents.data?.length || 0);
+        
+        setEvents(apiEvents.data || []);
 
       } catch (error) {
-        console.error('❌ Failed to load API events, using localStorage only:', error);
-        // Fallback to localStorage only
-        const localEvents = eventService.getAllEvents();
-        console.log('🔄 AdminEventManagement: Fallback to local events:', localEvents.length);
-        setEvents(localEvents);
+        console.error('❌ Failed to load events from database:', error);
+        setEvents([]);
+        setSnackbar({
+          open: true,
+          message: 'Gagal memuat data event dari database',
+          severity: 'error'
+        });
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadEvents();
-
-    // Listen for storage changes to update events in real-time
-    const handleStorageChange = () => {
-      console.log('🔄 AdminEventManagement: Storage changed, reloading events...');
+    // Add 300ms delay to ensure token is ready
+    const loadTimer = setTimeout(() => {
+      console.log('🔄 Starting event load after auth confirmation...');
       loadEvents();
-    };
+    }, 300);
 
-    // Listen for custom event when admin creates event (same-tab updates)
+    // Listen for custom event when admin creates/updates event
     const handleEventDataChange = (event: any) => {
       console.log('🔄 AdminEventManagement: Event data changed, reloading events...', event.detail);
       loadEvents();
     };
 
-    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('eventDataChanged', handleEventDataChange);
+    window.addEventListener('eventStatusChanged', handleEventDataChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      clearTimeout(loadTimer);
       window.removeEventListener('eventDataChanged', handleEventDataChange);
+      window.removeEventListener('eventStatusChanged', handleEventDataChange);
     };
-  }, []);
+  }, [isAuthenticated, authLoading, user]);
 
   const pendingEvents = events.filter(event => event.status === 'pending_approval');
   const approvedEvents = events.filter(event => event.status === 'published');
@@ -194,18 +188,19 @@ const AdminEventManagement: React.FC = () => {
     }
   };
 
-  const handleViewEvent = (event: Event) => {
+  const handleViewEvent = (event: AdminEvent) => {
     setSelectedEvent(event);
     setViewDialogOpen(true);
   };
 
-  const handleApproveEvent = (event: Event) => {
+  const handleApproveEvent = (event: AdminEvent) => {
     setSelectedEvent(event);
     setApproveDialogOpen(true);
   };
 
-  const handleRejectEvent = (event: Event) => {
+  const handleRejectEvent = (event: AdminEvent) => {
     setSelectedEvent(event);
+    setRejectionReason(''); // Reset rejection reason
     setRejectDialogOpen(true);
   };
 
@@ -221,28 +216,19 @@ const AdminEventManagement: React.FC = () => {
       
       console.log('✅ Event approved successfully');
       
-      // Reload events
+      // Reload events from database only
       const apiEvents = await adminApiService.getAllEvents();
-      const localEvents = eventService.getAllEvents();
       
-      // Convert and combine events
-      const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
-        id: event.id,
+      // Convert API events to display format
+      const convertedApiEvents: AdminEvent[] = (apiEvents.data || []).map(event => ({
+        ...event,
         name: event.title || '',
-        title: event.title || '',
-        description: event.description || '',
         eventDate: event.date || '',
-        date: event.date || '',
         startTime: event.start_time || '',
         endTime: event.end_time || '',
-        location: event.location || '',
         maxParticipants: event.max_participants || 0,
         currentParticipants: event.participants_count || 0,
         registrationDate: event.registration_deadline || '',
-        price: event.price || 0,
-        status: event.status as any || 'draft',
-        category: event.category || '',
-        organizer: event.organizer_name || '',
         organizerName: event.organizer_name || '',
         organizerEmail: event.organizer_email || '',
         organizerContact: event.organizer_contact || '',
@@ -251,9 +237,9 @@ const AdminEventManagement: React.FC = () => {
         submittedAt: event.submitted_at || '',
         approvedAt: event.approved_at || '',
         rejectedAt: event.rejected_at || ''
-      }));
+      } as AdminEvent));
       
-      const allEvents = [...convertedApiEvents, ...localEvents];
+      const allEvents = convertedApiEvents;
       setEvents(allEvents);
       
       // Dispatch custom event to notify other components
@@ -269,7 +255,7 @@ const AdminEventManagement: React.FC = () => {
       setSelectedEvent(null);
       setSnackbar({
         open: true,
-        message: `Event "${selectedEvent.name}" berhasil disetujui dan dipublikasikan!`,
+        message: `Event "${selectedEvent.title}" berhasil disetujui dan dipublikasikan!`,
         severity: 'success'
       });
     } catch (error) {
@@ -287,39 +273,64 @@ const AdminEventManagement: React.FC = () => {
   const confirmRejectEvent = async () => {
     if (!selectedEvent) return;
 
+    console.log('🔍 AdminEventManagement: confirmRejectEvent called', {
+      selectedEvent: selectedEvent.id,
+      rejectionReason,
+      reasonLength: rejectionReason.length,
+      reasonTrimmed: rejectionReason.trim(),
+      reasonTrimmedLength: rejectionReason.trim().length
+    });
+
+    // Validate rejection reason
+    if (!rejectionReason || rejectionReason.trim().length === 0) {
+      console.error('❌ Rejection reason is empty');
+      setSnackbar({
+        open: true,
+        message: 'Alasan penolakan harus diisi',
+        severity: 'error'
+      });
+      return;
+    }
+
+    if (rejectionReason.trim().length < 10) {
+      console.error('❌ Rejection reason too short:', rejectionReason.trim().length);
+      setSnackbar({
+        open: true,
+        message: 'Alasan penolakan minimal 10 karakter',
+        severity: 'error'
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      console.log('🔧 Rejecting event:', selectedEvent.id);
+      console.log('🔧 AdminEventManagement: Rejecting event', {
+        eventId: selectedEvent.id,
+        eventTitle: selectedEvent.title,
+        reason: rejectionReason
+      });
       
-      // Use adminApiService to reject event
+      // Use adminApiService to reject event with custom reason
       await adminApiService.rejectEvent(
         selectedEvent.id,
-        'Event tidak memenuhi kriteria atau ada masalah dengan informasi yang diberikan.'
+        rejectionReason.trim()
       );
       
-      console.log('✅ Event rejected successfully');
+      console.log('✅ AdminEventManagement: Event rejected successfully');
       
       // Reload events
       const apiEvents = await adminApiService.getAllEvents();
-      const localEvents = eventService.getAllEvents();
+      // No localStorage - 100% database only
       
-      const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
-        id: event.id,
+      const convertedApiEvents: AdminEvent[] = (apiEvents.data || []).map(event => ({
+        ...event,
         name: event.title || '',
-        title: event.title || '',
-        description: event.description || '',
         eventDate: event.date || '',
-        date: event.date || '',
         startTime: event.start_time || '',
         endTime: event.end_time || '',
-        location: event.location || '',
         maxParticipants: event.max_participants || 0,
         currentParticipants: event.participants_count || 0,
         registrationDate: event.registration_deadline || '',
-        price: event.price || 0,
-        status: event.status as any || 'draft',
-        category: event.category || '',
-        organizer: event.organizer_name || '',
         organizerName: event.organizer_name || '',
         organizerEmail: event.organizer_email || '',
         organizerContact: event.organizer_contact || '',
@@ -328,9 +339,9 @@ const AdminEventManagement: React.FC = () => {
         submittedAt: event.submitted_at || '',
         approvedAt: event.approved_at || '',
         rejectedAt: event.rejected_at || ''
-      }));
+      } as AdminEvent));
       
-      const allEvents = [...convertedApiEvents, ...localEvents];
+      const allEvents = convertedApiEvents;
       setEvents(allEvents);
       
       // Dispatch custom event to notify other components
@@ -344,7 +355,7 @@ const AdminEventManagement: React.FC = () => {
 
       setSnackbar({
         open: true,
-        message: `Event "${selectedEvent.name}" telah ditolak`,
+        message: `Event "${selectedEvent.title}" telah ditolak`,
         severity: 'info'
       });
       
@@ -363,7 +374,8 @@ const AdminEventManagement: React.FC = () => {
   };
 
   const handleCreateAdminEvent = () => {
-    setCreateEventDialogOpen(true);
+    // Navigate to create form like EO (ONLY CREATE uses separate form)
+    navigate('/admin/events/create');
   };
 
   const handleSaveAdminEvent = async () => {
@@ -388,25 +400,17 @@ const AdminEventManagement: React.FC = () => {
 
       // Refresh events list from API (admin + local events combined)
       const apiEvents = await adminApiService.getAllEvents();
-      const localEvents = eventService.getAllEvents();
+      // No localStorage - 100% database only
 
-      const convertedApiEvents: Event[] = (apiEvents.data || []).map(event => ({
-        id: event.id,
+      const convertedApiEvents: AdminEvent[] = (apiEvents.data || []).map(event => ({
+        ...event,
         name: event.title || '',
-        title: event.title || '',
-        description: event.description || '',
         eventDate: event.date || '',
-        date: event.date || '',
         startTime: event.start_time || '',
         endTime: event.end_time || '',
-        location: event.location || '',
         maxParticipants: event.max_participants || 0,
         currentParticipants: event.participants_count || 0,
         registrationDate: event.registration_deadline || '',
-        price: event.price || 0,
-        status: event.status as any || 'draft',
-        category: event.category || '',
-        organizer: event.organizer_name || '',
         organizerName: event.organizer_name || '',
         organizerEmail: event.organizer_email || '',
         organizerContact: event.organizer_contact || '',
@@ -416,9 +420,9 @@ const AdminEventManagement: React.FC = () => {
         submittedAt: event.submitted_at || '',
         approvedAt: event.approved_at || '',
         rejectedAt: event.rejected_at || ''
-      }));
+      } as AdminEvent));
 
-      const allEvents = [...convertedApiEvents, ...localEvents];
+      const allEvents = convertedApiEvents;
       console.log('🔄 AdminEventManagement: Refreshed events count:', allEvents.length);
       setEvents(allEvents);
 
@@ -476,7 +480,7 @@ const AdminEventManagement: React.FC = () => {
     }).format(amount);
   };
 
-  const renderEventTable = (eventList: Event[]) => (
+  const renderEventTable = (eventList: AdminEvent[]) => (
     <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
       <Table>
         <TableHead sx={{ bgcolor: '#f8fafc' }}>
@@ -507,7 +511,7 @@ const AdminEventManagement: React.FC = () => {
                 <TableCell>
                   <Box>
                     <Typography variant="subtitle2" fontWeight="bold">
-                      {event.name}
+                      {event.title}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {event.category}
@@ -517,20 +521,20 @@ const AdminEventManagement: React.FC = () => {
                 <TableCell>
                   <Box>
                     <Typography variant="body2" fontWeight="500">
-                      {event.organizer}
+                      {event.organizer_name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {event.organizerEmail}
+                      {event.organizer_email}
                     </Typography>
                   </Box>
                 </TableCell>
                 <TableCell>
                   <Box>
                     <Typography variant="body2">
-                      {formatDate(event.eventDate)}
+                      {formatDate(event.date)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {event.startTime} - {event.endTime}
+                      {event.start_time} - {event.end_time}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -557,6 +561,7 @@ const AdminEventManagement: React.FC = () => {
                       size="small"
                       onClick={() => handleViewEvent(event)}
                       sx={{ color: '#6366f1' }}
+                      title="Lihat Detail"
                     >
                       <ViewIcon />
                     </IconButton>
@@ -566,6 +571,7 @@ const AdminEventManagement: React.FC = () => {
                           size="small"
                           onClick={() => handleApproveEvent(event)}
                           sx={{ color: '#10b981' }}
+                          title="Setujui Event"
                         >
                           <ApproveIcon />
                         </IconButton>
@@ -573,6 +579,7 @@ const AdminEventManagement: React.FC = () => {
                           size="small"
                           onClick={() => handleRejectEvent(event)}
                           sx={{ color: '#ef4444' }}
+                          title="Tolak Event"
                         >
                           <RejectIcon />
                         </IconButton>
@@ -720,7 +727,7 @@ const AdminEventManagement: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <Box>
                     <Typography variant="h5" fontWeight="bold" gutterBottom>
-                      {selectedEvent.name}
+                      {selectedEvent.title}
                     </Typography>
                     <Chip
                       label={getStatusLabel(selectedEvent.status)}
@@ -747,20 +754,20 @@ const AdminEventManagement: React.FC = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Typography variant="body2">
-                          <strong>Nama:</strong> {selectedEvent.organizer || selectedEvent.organizerName || 'N/A'}
+                          <strong>Nama:</strong> {selectedEvent.organizer_name || 'N/A'}
                         </Typography>
                         <Typography variant="body2" sx={{ 
                           display: 'flex', 
                           alignItems: 'center',
-                          color: selectedEvent.organizerEmail ? 'inherit' : '#999',
-                          fontStyle: selectedEvent.organizerEmail ? 'normal' : 'italic'
+                          color: selectedEvent.organizer_email ? 'inherit' : '#999',
+                          fontStyle: selectedEvent.organizer_email ? 'normal' : 'italic'
                         }}>
                           <EmailIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                          {selectedEvent.organizerEmail || 'Email tidak tersedia'}
+                          {selectedEvent.organizer_email || 'Email tidak tersedia'}
                         </Typography>
                         <Typography variant="body2">
                           <PhoneIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                          {selectedEvent.organizerContact || 'Kontak tidak tersedia'}
+                          {selectedEvent.organizer_contact || 'Kontak tidak tersedia'}
                         </Typography>
                         {selectedEvent.status === 'pending_approval' && (
                           <Typography variant="caption" sx={{ 
@@ -786,14 +793,14 @@ const AdminEventManagement: React.FC = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Typography variant="body2">
-                          <strong>Pendaftaran:</strong> {formatDate(selectedEvent.registrationDate)}
+                          <strong>Pendaftaran:</strong> {formatDate(selectedEvent.registration_deadline || selectedEvent.date)}
                         </Typography>
                         <Typography variant="body2">
-                          <strong>Tanggal Event:</strong> {formatDate(selectedEvent.eventDate)}
+                          <strong>Tanggal Event:</strong> {formatDate(selectedEvent.date)}
                         </Typography>
                         <Typography variant="body2">
                           <TimeIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                          {selectedEvent.startTime} - {selectedEvent.endTime}
+                          {selectedEvent.start_time} - {selectedEvent.end_time}
                         </Typography>
                       </Box>
                     </Card>
@@ -833,10 +840,10 @@ const AdminEventManagement: React.FC = () => {
                         Kapasitas & Harga
                       </Typography>
                       <Typography variant="body2">
-                        Maksimal: {selectedEvent.maxParticipants} peserta
+                        Maksimal: {selectedEvent.max_participants} peserta
                       </Typography>
                       <Typography variant="body2">
-                        Harga: {selectedEvent.price === 0 ? 'Gratis' : formatCurrency(selectedEvent.price)}
+                        Harga: {selectedEvent.price === 0 ? 'Gratis' : formatCurrency(selectedEvent.price || 0)}
                       </Typography>
                       {selectedEvent.category && (
                         <Typography variant="body2">
@@ -889,7 +896,7 @@ const AdminEventManagement: React.FC = () => {
           </DialogTitle>
           <DialogContent>
             <Typography variant="body1">
-              Apakah Anda yakin ingin menyetujui dan mempublikasikan event "{selectedEvent?.name}"?
+              Apakah Anda yakin ingin menyetujui dan mempublikasikan event "{selectedEvent?.title}"?
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               Event akan langsung tampil di halaman publik dan peserta dapat mendaftar.
@@ -911,31 +918,62 @@ const AdminEventManagement: React.FC = () => {
         </Dialog>
 
         {/* Reject Confirmation Dialog */}
-        <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)}>
+        <Dialog 
+          open={rejectDialogOpen} 
+          onClose={() => !loading && setRejectDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
           <DialogTitle>
             <Typography variant="h6" fontWeight="bold" sx={{ color: 'error.main' }}>
               Konfirmasi Penolakan Event
             </Typography>
           </DialogTitle>
           <DialogContent>
-            <Typography variant="body1">
-              Apakah Anda yakin ingin menolak event "{selectedEvent?.name}"?
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              Apakah Anda yakin ingin menolak event "{selectedEvent?.title}"?
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Event akan dibatalkan dan organizer akan mendapat notifikasi penolakan.
             </Typography>
+            
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="Alasan Penolakan *"
+              placeholder="Jelaskan alasan penolakan event ini (minimal 10 karakter)"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              disabled={loading}
+              required
+              error={rejectionReason.length > 0 && rejectionReason.length < 10}
+              helperText={
+                rejectionReason.length > 0 && rejectionReason.length < 10
+                  ? 'Alasan penolakan minimal 10 karakter'
+                  : 'Alasan ini akan dikirim ke organizer'
+              }
+              sx={{ mt: 2 }}
+            />
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setRejectDialogOpen(false)} disabled={loading}>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button 
+              onClick={() => {
+                setRejectDialogOpen(false);
+                setRejectionReason('');
+              }} 
+              disabled={loading}
+            >
               Batal
             </Button>
             <Button
               variant="contained"
               color="error"
               onClick={confirmRejectEvent}
-              disabled={loading}
+              disabled={loading || !rejectionReason || rejectionReason.trim().length < 10}
+              startIcon={loading ? <CircularProgress size={20} /> : <RejectIcon />}
             >
-              {loading ? <CircularProgress size={20} /> : 'Tolak Event'}
+              {loading ? 'Menolak...' : 'Tolak Event'}
             </Button>
           </DialogActions>
         </Dialog>

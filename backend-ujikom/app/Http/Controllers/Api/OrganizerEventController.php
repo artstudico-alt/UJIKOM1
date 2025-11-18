@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\EventParticipant;
 use App\Http\Resources\EventResource;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class OrganizerEventController extends Controller
 {
@@ -326,6 +329,118 @@ class OrganizerEventController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get participants for a specific event
+     */
+    public function getParticipants($eventId): JsonResponse
+    {
+        try {
+            $event = Event::findOrFail($eventId);
+
+            // Check if user owns this event
+            if ($event->user_id !== Auth::id() || $event->organizer_type !== 'organizer') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized access to this event'
+                ], 403);
+            }
+
+            $participants = EventParticipant::where('event_id', $eventId)
+                ->with('participant:id,name,email,phone')
+                ->get()
+                ->map(function ($participant) {
+                    return [
+                        'id' => $participant->id,
+                        'user_id' => $participant->participant_id,
+                        'name' => $participant->participant->name ?? 'N/A',
+                        'email' => $participant->participant->email ?? 'N/A',
+                        'phone' => $participant->participant->phone ?? 'N/A',
+                        'registration_number' => $participant->registration_number,
+                        'registration_date' => $participant->created_at->format('Y-m-d H:i:s'),
+                        'attendance_status' => $participant->attendance_status ?? 'pending',
+                        'is_attendance_verified' => $participant->is_attendance_verified,
+                        'has_certificate' => $participant->has_received_certificate
+                    ];
+                });
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $participants
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch participants: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export participants to Excel (only names)
+     */
+    public function exportParticipants($eventId)
+    {
+        try {
+            $event = Event::findOrFail($eventId);
+
+            // Check if user owns this event
+            if ($event->user_id !== Auth::id() || $event->organizer_type !== 'organizer') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized access to this event'
+                ], 403);
+            }
+
+            $participants = EventParticipant::where('event_id', $eventId)
+                ->with('participant:id,name')
+                ->get();
+
+            // Create new Spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Set header
+            $sheet->setCellValue('A1', 'No');
+            $sheet->setCellValue('B1', 'Nama Lengkap');
+
+            // Style header
+            $sheet->getStyle('A1:B1')->getFont()->setBold(true);
+            $sheet->getStyle('A1:B1')->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFE0E0E0');
+
+            // Add data
+            $row = 2;
+            foreach ($participants as $index => $participant) {
+                $sheet->setCellValue('A' . $row, $index + 1);
+                $sheet->setCellValue('B' . $row, $participant->participant->name ?? 'N/A');
+                $row++;
+            }
+
+            // Auto-size columns
+            $sheet->getColumnDimension('A')->setAutoSize(true);
+            $sheet->getColumnDimension('B')->setAutoSize(true);
+
+            // Generate filename
+            $filename = 'participants_' . str_replace(' ', '_', $event->title) . '_' . date('Y-m-d') . '.xlsx';
+
+            // Create writer and save to temp file
+            $writer = new Xlsx($spreadsheet);
+            $temp_file = tempnam(sys_get_temp_dir(), 'participants_');
+            $writer->save($temp_file);
+
+            // Return file download
+            return response()->download($temp_file, $filename)->deleteFileAfterSend(true);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to export participants: ' . $e->getMessage()
             ], 500);
         }
     }

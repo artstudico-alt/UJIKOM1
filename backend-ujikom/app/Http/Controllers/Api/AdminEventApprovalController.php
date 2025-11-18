@@ -132,8 +132,21 @@ class AdminEventApprovalController extends Controller
     public function approveEvent(Request $request, Event $event): JsonResponse
     {
         try {
+            \Log::info('Approving event', [
+                'event_id' => $event->id,
+                'title' => $event->title,
+                'current_status' => $event->status,
+                'organizer_type' => $event->organizer_type,
+                'is_active' => $event->is_active
+            ]);
+
             // Check if event is organizer event and pending
             if ($event->organizer_type !== 'organizer' || $event->status !== 'pending_approval') {
+                \Log::warning('Event cannot be approved', [
+                    'event_id' => $event->id,
+                    'organizer_type' => $event->organizer_type,
+                    'status' => $event->status
+                ]);
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Event cannot be approved in current status'
@@ -148,6 +161,16 @@ class AdminEventApprovalController extends Controller
                 'approved_by' => Auth::id(),
                 'rejected_at' => null,
                 'rejection_reason' => null,
+            ]);
+
+            // Refresh to get updated values
+            $event->refresh();
+
+            \Log::info('Event approved successfully', [
+                'event_id' => $event->id,
+                'new_status' => $event->status,
+                'is_active' => $event->is_active,
+                'approved_at' => $event->approved_at
             ]);
 
             return response()->json([
@@ -175,11 +198,22 @@ class AdminEventApprovalController extends Controller
                 'rejection_reason' => 'required|string|max:500'
             ]);
 
-            // Check if event is organizer event and pending
-            if ($event->organizer_type !== 'organizer' || $event->status !== 'pending_approval') {
+            // Check if event can be rejected
+            // Allow rejection for: pending_approval, approved, published
+            $rejectableStatuses = ['pending_approval', 'approved', 'published'];
+
+            if (!in_array($event->status, $rejectableStatuses)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Event cannot be rejected in current status'
+                    'message' => 'Event dengan status "' . $event->status . '" tidak dapat ditolak. Hanya event dengan status pending, approved, atau published yang dapat ditolak.'
+                ], 400);
+            }
+
+            // Check if event is already rejected
+            if ($event->status === 'rejected') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Event sudah ditolak sebelumnya'
                 ], 400);
             }
 
@@ -193,16 +227,37 @@ class AdminEventApprovalController extends Controller
                 'approved_at' => null,
             ]);
 
+            // Log the rejection
+            \Log::info('Event rejected by admin', [
+                'event_id' => $event->id,
+                'event_title' => $event->title,
+                'admin_id' => Auth::id(),
+                'reason' => $request->rejection_reason,
+                'previous_status' => $event->getOriginal('status')
+            ]);
+
             return response()->json([
                 'status' => 'success',
-                'message' => 'Event rejected successfully',
+                'message' => 'Event berhasil ditolak',
                 'data' => new EventResource($event)
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to reject event: ' . $e->getMessage()
+                'message' => 'Alasan penolakan harus diisi',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Failed to reject event', [
+                'event_id' => $event->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal menolak event: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -272,6 +327,186 @@ class AdminEventApprovalController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to bulk approve events: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create new event (Admin)
+     */
+    public function createEvent(Request $request): JsonResponse
+    {
+        try {
+            \Log::info('Admin creating event', ['data' => $request->all()]);
+
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'date' => 'required|date',
+                'start_time' => 'required',
+                'end_time' => 'required',
+                'location' => 'required|string',
+                'max_participants' => 'required|integer|min:1',
+                'registration_deadline' => 'required|date',
+                'registration_date' => 'nullable|date',
+                'price' => 'nullable|numeric|min:0',
+                'organizer_name' => 'required|string|max:255',
+                'organizer_email' => 'required|email',
+                'organizer_contact' => 'required|string',
+                'event_type' => 'required|string',
+                'category' => 'required|string',
+                'flyer' => 'nullable|image|max:2048',
+            ]);
+
+            // Handle file upload
+            $imagePath = null;
+            if ($request->hasFile('flyer')) {
+                $imagePath = $request->file('flyer')->store('events', 'public');
+            }
+
+            // Create event
+            $event = Event::create([
+                'title' => $validated['title'],
+                'description' => $validated['description'],
+                'date' => $validated['date'],
+                'start_time' => $validated['start_time'],
+                'end_time' => $validated['end_time'],
+                'location' => $validated['location'],
+                'max_participants' => $validated['max_participants'],
+                'registration_deadline' => $validated['registration_deadline'],
+                'registration_date' => $validated['registration_date'] ?? $validated['registration_deadline'],
+                'price' => $validated['price'] ?? 0,
+                'organizer_name' => $validated['organizer_name'],
+                'organizer_email' => $validated['organizer_email'],
+                'organizer_contact' => $validated['organizer_contact'],
+                'event_type' => $validated['event_type'],
+                'category' => $validated['category'],
+                'image' => $imagePath,
+                'image_url' => $imagePath ? asset('storage/' . $imagePath) : null,
+                'status' => 'published', // Admin events are published immediately
+                'is_active' => true,
+                'organizer_type' => 'admin',
+                'created_by' => Auth::id(),
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+            ]);
+
+            \Log::info('Admin event created successfully', ['event_id' => $event->id]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Event berhasil dibuat dan langsung dipublikasikan',
+                'data' => new EventResource($event)
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Validation failed for admin event creation', ['errors' => $e->errors()]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Failed to create admin event', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal membuat event: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update event (Admin)
+     */
+    public function updateEvent(Request $request, Event $event): JsonResponse
+    {
+        try {
+            \Log::info('Admin updating event', ['event_id' => $event->id, 'data' => $request->all()]);
+
+            $validated = $request->validate([
+                'title' => 'sometimes|required|string|max:255',
+                'description' => 'sometimes|required|string',
+                'date' => 'sometimes|required|date',
+                'start_time' => 'sometimes|required',
+                'end_time' => 'sometimes|required',
+                'location' => 'sometimes|required|string',
+                'max_participants' => 'sometimes|required|integer|min:1',
+                'registration_deadline' => 'sometimes|required|date',
+                'price' => 'nullable|numeric|min:0',
+                'organizer_name' => 'sometimes|required|string|max:255',
+                'organizer_email' => 'sometimes|required|email',
+                'organizer_contact' => 'sometimes|required|string',
+                'event_type' => 'sometimes|required|string',
+                'category' => 'sometimes|required|string',
+                'flyer' => 'nullable|image|max:2048',
+            ]);
+
+            // Handle file upload
+            if ($request->hasFile('flyer')) {
+                // Delete old image if exists
+                if ($event->image) {
+                    \Storage::disk('public')->delete($event->image);
+                }
+                $imagePath = $request->file('flyer')->store('events', 'public');
+                $validated['image'] = $imagePath;
+                $validated['image_url'] = asset('storage/' . $imagePath);
+            }
+
+            $event->update($validated);
+
+            \Log::info('Admin event updated successfully', ['event_id' => $event->id]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Event berhasil diupdate',
+                'data' => new EventResource($event)
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to update admin event', [
+                'event_id' => $event->id,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mengupdate event: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete event (Admin)
+     */
+    public function deleteEvent(Event $event): JsonResponse
+    {
+        try {
+            \Log::info('Admin deleting event', ['event_id' => $event->id]);
+
+            // Delete image if exists
+            if ($event->image) {
+                \Storage::disk('public')->delete($event->image);
+            }
+
+            $event->delete();
+
+            \Log::info('Admin event deleted successfully', ['event_id' => $event->id]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Event berhasil dihapus'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to delete admin event', [
+                'event_id' => $event->id,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal menghapus event: ' . $e->getMessage()
             ], 500);
         }
     }

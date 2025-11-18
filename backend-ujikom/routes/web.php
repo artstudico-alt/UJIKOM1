@@ -55,6 +55,25 @@ Route::get('/', function () {
     return view('auth.login');
 })->name('home');
 
+// Serve storage files (images, etc.)
+Route::get('/storage/{path}', function ($path) {
+    $filePath = storage_path('app/public/' . $path);
+
+    if (!file_exists($filePath)) {
+        abort(404, 'File not found: ' . $path);
+    }
+
+    $mimeType = mime_content_type($filePath);
+
+    return response()->file($filePath, [
+        'Content-Type' => $mimeType,
+        'Cache-Control' => 'public, max-age=31536000',
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET',
+        'Access-Control-Allow-Headers' => 'Content-Type',
+    ]);
+})->where('path', '.*')->name('storage.file')->withoutMiddleware(['web']);
+
 // Public Event & Search routes
 Route::get('/catalog', [PublicController::class, 'catalog'])->name('catalog');
 Route::get('/events/{id}', [PublicController::class, 'eventDetail'])->name('events.show');
@@ -105,7 +124,7 @@ Route::put('/reset-password', [AuthController::class, 'resetPassword'])->name('p
 Route::middleware(['auth', 'role:event_organizer,admin'])->prefix('organizer')->name('organizer.')->group(function () {
     // Dashboard
     Route::get('/dashboard', [App\Http\Controllers\OrganizerController::class, 'dashboard'])->name('dashboard');
-    
+
     // Event Management
     Route::get('/events/create', [App\Http\Controllers\OrganizerController::class, 'createEvent'])->name('events.create');
     Route::post('/events', [App\Http\Controllers\OrganizerController::class, 'storeEvent'])->name('events.store');
@@ -113,13 +132,13 @@ Route::middleware(['auth', 'role:event_organizer,admin'])->prefix('organizer')->
     Route::get('/events/{id}/edit', [App\Http\Controllers\OrganizerController::class, 'editEvent'])->name('events.edit');
     Route::put('/events/{id}', [App\Http\Controllers\OrganizerController::class, 'updateEvent'])->name('events.update');
     Route::delete('/events/{id}', [App\Http\Controllers\OrganizerController::class, 'destroyEvent'])->name('events.destroy');
-    
+
     // Participant Management
     Route::get('/events/{id}/participants', [App\Http\Controllers\OrganizerController::class, 'eventParticipants'])->name('events.participants');
-    
+
     // Document Upload
     Route::post('/events/{id}/documents', [App\Http\Controllers\OrganizerController::class, 'uploadEventDocuments'])->name('events.documents.upload');
-    
+
     // Event Report
     Route::post('/events/{id}/report', [App\Http\Controllers\OrganizerController::class, 'sendEventReport'])->name('events.report.send');
 });
@@ -139,17 +158,17 @@ Route::middleware(['auth'])->group(function () {
         }
         return view('auth.verify.notice');
     })->name('verification.notice');
-    
+
     // Handle email verification resend
     Route::post('/email/verification-notification', [VerificationController::class, 'resend'])
         ->middleware('throttle:6,1')
         ->name('verification.send');
-    
+
     // Handle email verification
     Route::post('/verify-email', [VerificationController::class, 'verify'])
         ->middleware('throttle:6,1')
         ->name('verification.verify');
-    
+
     // Show verification form for unverified users
     Route::get('/verify-email', function () {
         if (auth()->user()->is_verified) {
@@ -157,7 +176,7 @@ Route::middleware(['auth'])->group(function () {
         }
         return view('auth.verify.form');
     })->name('verification.form');
-    
+
     // Test route for debugging
     Route::get('/test-verification', function () {
         return response()->json([
@@ -178,7 +197,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
-    
+
     // Profile
     Route::get('/profile', function () {
         return view('profile.show');
@@ -203,19 +222,19 @@ Route::middleware(['auth', 'is_admin'])->prefix('admin')->name('admin.')->group(
         }
         return app(DashboardController::class)->index();
     })->name('dashboard');
-    
+
     // Admin routes that require verification
     Route::middleware(['verified'])->group(function () {
         Route::get('/dashboard/stats', [DashboardController::class, 'statistics'])->name('dashboard.stats');
         Route::get('/dashboard/chart-data', [DashboardController::class, 'chartData'])->name('dashboard.chart-data');
         Route::resource('events', AdminEventController::class);
-        
+
         // Participants Management Routes
         Route::get('/participants', [App\Http\Controllers\Admin\ParticipantController::class, 'index'])->name('participants.index');
         Route::get('/participants/all', [App\Http\Controllers\Admin\ParticipantController::class, 'allParticipants'])->name('participants.all');
         Route::get('/participants/event/{event}', [App\Http\Controllers\Admin\ParticipantController::class, 'eventParticipants'])->name('participants.event');
         Route::get('/participants/export', [App\Http\Controllers\Admin\ParticipantController::class, 'export'])->name('participants.export');
-        
+
         Route::prefix('events/{event}')->group(function () {
             Route::get('/export', [AdminEventController::class, 'export'])->name('events.export');
             Route::post('/participants', [AdminEventController::class, 'addParticipant'])->name('events.add-participant');
@@ -225,7 +244,7 @@ Route::middleware(['auth', 'is_admin'])->prefix('admin')->name('admin.')->group(
             Route::post('/participants/{participant}/certificate', [AdminEventController::class, 'generateCertificate'])->name('events.generate-certificate');
             Route::post('/certificates/generate-all', [AdminEventController::class, 'generateAllCertificates'])->name('events.generate-all-certificates');
         });
-        
+
         Route::get('/certificates/{certificate}/download', [AdminEventController::class, 'downloadCertificate'])->name('certificates.download');
         Route::get('/certificates/{certificate}', [AdminEventController::class, 'showCertificate'])->name('certificates.show');
     });
@@ -243,7 +262,7 @@ if (app()->environment('local', 'staging')) {
             ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
             ->header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization');
     })->where('any', '.*');
-    
+
     Route::get('/test-email', function () {
         try {
             Mail::raw('Ini adalah email test', function($message) {
@@ -255,7 +274,7 @@ if (app()->environment('local', 'staging')) {
             return 'Gagal mengirim email: ' . $e->getMessage();
         }
     });
-    
+
     Route::get('/test', function () {
         return 'Test route works!';
     });

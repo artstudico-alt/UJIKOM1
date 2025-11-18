@@ -25,6 +25,7 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
+  Snackbar,
 } from '@mui/material';
 import {
   Save,
@@ -52,7 +53,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 // Dynamic schema based on user role
 const createSchema = (isOrganizer: boolean) => {
-  // Calculate minimum date (H-3)
+  // Calculate minimum date (H-3) - only for organizers
   const minDate = new Date();
   minDate.setDate(minDate.getDate() + 3);
   const minDateString = minDate.toISOString().split('T')[0];
@@ -60,16 +61,18 @@ const createSchema = (isOrganizer: boolean) => {
   const baseSchema: any = {
     title: yup.string().required('Judul event wajib diisi'),
     description: yup.string().required('Deskripsi event wajib diisi'),
-    date: yup.string()
-      .required('Tanggal event wajib diisi')
-      .test('min-date', `Tanggal event minimal H-3 dari hari ini (${minDateString})`, function(value) {
-        if (!value) return false;
-        const eventDate = new Date(value);
-        const today = new Date();
-        const diffTime = eventDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays >= 3;
-      }),
+    date: isOrganizer 
+      ? yup.string()
+          .required('Tanggal event wajib diisi')
+          .test('min-date', `Tanggal event minimal H-3 dari hari ini (${minDateString})`, function(value) {
+            if (!value) return false;
+            const eventDate = new Date(value);
+            const today = new Date();
+            const diffTime = eventDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays >= 3;
+          })
+      : yup.string().required('Tanggal event wajib diisi'), // Admin can set any date
     start_time: yup.string().required('Waktu mulai wajib diisi'),
     end_time: yup.string()
       .required('Waktu selesai wajib diisi')
@@ -87,24 +90,15 @@ const createSchema = (isOrganizer: boolean) => {
         if (!date || !value) return true;
         return new Date(value) < new Date(date);
       }),
-    registration_date: yup.string()
-      .required('Tanggal pendaftaran wajib diisi')
-      .test('before-event', 'Tanggal pendaftaran harus sebelum tanggal event', function(value) {
-        const { date } = this.parent;
-        if (!date || !value) return true;
-        return new Date(value) < new Date(date);
-      }),
+    registration_date: yup.string().optional(), // Optional - will be auto-filled from registration_deadline or date
     price: yup.number().min(0, 'Harga tidak boleh negatif').optional(),
+    event_type: yup.string().required('Tipe event wajib dipilih'),
+    category: yup.string().required('Kategori event wajib dipilih'),
+    // Organizer fields - required for both admin and EO
+    organizer_name: yup.string().required('Nama penyelenggara wajib diisi'),
+    organizer_email: yup.string().email('Format email tidak valid').required('Email penyelenggara wajib diisi'),
+    organizer_contact: yup.string().required('Kontak penyelenggara wajib diisi'),
   };
-
-  // Add organizer-specific fields for EO
-  if (isOrganizer) {
-    baseSchema.organizer_name = yup.string().required('Nama organizer wajib diisi');
-    baseSchema.organizer_email = yup.string().email('Format email tidak valid').required('Email organizer wajib diisi');
-    baseSchema.organizer_contact = yup.string().required('Kontak organizer wajib diisi');
-    baseSchema.event_type = yup.string().required('Tipe event wajib dipilih');
-    baseSchema.category = yup.string().required('Kategori event wajib dipilih');
-  }
 
   return yup.object().shape(baseSchema);
 };
@@ -133,6 +127,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
     setValue,
     formState: { errors },
   } = useForm({
+    mode: 'onSubmit', // Only validate on submit, not on change
     resolver: yupResolver(schema) as any,
     defaultValues: {
       title: '',
@@ -145,13 +140,14 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
       registration_deadline: '',
       registration_date: '',
       price: 0,
-      // EO specific defaults
-      organizer_name: isOrganizer ? user?.name || '' : '',
-      organizer_email: isOrganizer ? user?.email || '' : '',
-      organizer_contact: isOrganizer ? user?.phone || '' : '',
-      event_type: isOrganizer ? 'workshop' : undefined,
-      category: isOrganizer ? '' : undefined,
+      // Common fields for both admin and EO
+      event_type: 'workshop',
+      category: '',
       flyer: undefined,
+      // Organizer fields - default to user info for both admin and EO
+      organizer_name: user?.name || '',
+      organizer_email: user?.email || '',
+      organizer_contact: user?.phone || '',
       // Set status based on role
       status: isOrganizer ? 'pending_approval' : 'published',
       created_by_role: isOrganizer ? 'event_organizer' : 'admin',
@@ -159,11 +155,15 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
   });
 
   const handleSave = async (data: EventFormData) => {
+    console.log('🚀 handleSave called with data:', data);
+    console.log('🔍 isOrganizer:', isOrganizer);
+    console.log('🔍 Form errors:', errors);
+    
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('Saving event:', data);
+      console.log('✅ Starting save process...');
       
       if (isOrganizer) {
         // Use organizer API service
@@ -241,11 +241,89 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
         }
       } else {
         // Admin event creation logic
-        navigate('/admin/events');
+        console.log('📝 Admin path - importing adminApiService...');
+        const { adminApiService } = await import('../../services/adminApiService');
+        console.log('✅ adminApiService imported');
+        
+        // Create event object for API
+        const eventData: any = {
+          title: data.title,
+          description: data.description,
+          date: data.date,
+          start_time: data.start_time || '',
+          end_time: data.end_time || '',
+          location: data.location,
+          max_participants: data.max_participants,
+          registration_deadline: data.registration_deadline || '',
+          registration_date: data.registration_date || data.registration_deadline || data.date,
+          price: data.price || 0,
+          organizer_name: data.organizer_name || '',
+          organizer_email: data.organizer_email || '',
+          organizer_contact: data.organizer_contact || '',
+          event_type: data.event_type || 'workshop',
+          category: data.category || '',
+          status: 'published', // Admin events are published immediately
+          organizer_type: 'admin'
+        };
+        
+        // Add file if exists
+        if (data.flyer) {
+          eventData.flyer = data.flyer;
+          console.log('📎 Flyer file attached:', data.flyer.name);
+        }
+        
+        console.log('📤 Admin event data to send:', eventData);
+        console.log('🌐 Calling adminApiService.createEvent...');
+        
+        const response = await adminApiService.createEvent(eventData);
+        console.log('📥 Create admin event response:', response);
+        
+        if (response.status === 'success') {
+          console.log('✅ Admin event created successfully:', response.data);
+          
+          // Clear cached data
+          localStorage.removeItem('cached_events');
+          localStorage.setItem('force_refresh_events', JSON.stringify({
+            timestamp: Date.now(),
+            newEventId: response.data?.id,
+            message: 'Event berhasil dibuat dan langsung dipublikasikan'
+          }));
+          
+          // Navigate back to admin events
+          const refreshParam = `?refresh=${Date.now()}`;
+          navigate(`/admin/events${refreshParam}`, { 
+            state: { 
+              refresh: true, 
+              newEventId: response.data?.id,
+              message: 'Event berhasil dibuat dan langsung dipublikasikan',
+              timestamp: Date.now()
+            },
+            replace: true
+          });
+          
+          console.log('✅ Admin navigation triggered with auto-refresh');
+          
+          // Dispatch custom event
+          window.dispatchEvent(new CustomEvent('eventCreated', {
+            detail: { eventId: response.data?.id }
+          }));
+        } else {
+          console.error('❌ Admin event creation failed:', response);
+          throw new Error(response.message || 'Failed to create event');
+        }
       }
     } catch (err: any) {
-      console.error('Error saving event:', err);
-      setError(err.message || 'Gagal menyimpan event. Silakan coba lagi.');
+      console.error('❌ Error saving event:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      const errorMessage = err.response?.data?.message || err.message || 'Gagal menyimpan event. Silakan coba lagi.';
+      setError(errorMessage);
+      
+      // Show alert for better visibility
+      alert(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -379,7 +457,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
           border: '1px solid rgba(79, 70, 229, 0.1)'
         }}>
-          <form onSubmit={handleSubmit(handleSave as any)}>
+          <form onSubmit={handleSubmit(handleSave as any)} noValidate>
             {/* Basic Information Section */}
             <Card sx={{ mb: 4, borderRadius: 2, border: '1px solid rgba(79, 70, 229, 0.1)' }}>
               <CardContent sx={{ p: 3 }}>
@@ -408,7 +486,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                         label="Judul Event"
                         placeholder="Masukkan judul event yang menarik"
                         error={!!errors.title}
-                        helperText={errors.title?.message}
+                        helperText={errors.title?.message as string}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
@@ -435,7 +513,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                         multiline
                         rows={4}
                         error={!!errors.description}
-                        helperText={errors.description?.message}
+                        helperText={errors.description?.message as string}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
@@ -450,55 +528,53 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     )}
                   />
 
-                  {/* EO-specific fields in basic info */}
-                  {isOrganizer && (
-                    <>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
-                        <Controller
-                          name="event_type"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl fullWidth error={!!errors.event_type}>
-                              <InputLabel>Tipe Event</InputLabel>
-                              <Select
-                                {...field}
-                                label="Tipe Event"
-                                sx={{
-                                  borderRadius: 2,
-                                  '&:hover': {
-                                    '& .MuiOutlinedInput-notchedOutline': {
-                                      borderColor: '#4f46e5',
-                                    }
-                                  }
-                                }}
-                              >
-                                <MenuItem value="workshop">🛠️ Workshop</MenuItem>
-                                <MenuItem value="seminar">🎤 Seminar</MenuItem>
-                                <MenuItem value="conference">🏢 Conference</MenuItem>
-                                <MenuItem value="webinar">💻 Webinar</MenuItem>
-                                <MenuItem value="training">📚 Training</MenuItem>
-                                <MenuItem value="other">🎯 Lainnya</MenuItem>
-                              </Select>
-                              {errors.event_type && (
-                                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                                  {errors.event_type.message}
-                                </Typography>
-                              )}
-                            </FormControl>
+                  {/* Event Type and Category - Show for both Admin and EO */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
+                    <Controller
+                      name="event_type"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth error={!!errors.event_type}>
+                          <InputLabel>Tipe Event</InputLabel>
+                          <Select
+                            {...field}
+                            label="Tipe Event"
+                            sx={{
+                              borderRadius: 2,
+                              '&:hover': {
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#4f46e5',
+                                }
+                              }
+                            }}
+                          >
+                            <MenuItem value="workshop">🛠️ Workshop</MenuItem>
+                            <MenuItem value="seminar">🎤 Seminar</MenuItem>
+                            <MenuItem value="conference">🏢 Conference</MenuItem>
+                            <MenuItem value="webinar">💻 Webinar</MenuItem>
+                            <MenuItem value="training">📚 Training</MenuItem>
+                            <MenuItem value="other">🎯 Lainnya</MenuItem>
+                          </Select>
+                          {errors.event_type?.message && (
+                            <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                              {String(errors.event_type.message)}
+                            </Typography>
                           )}
-                        />
+                        </FormControl>
+                      )}
+                    />
 
-                        <Controller
-                          name="category"
-                          control={control}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              fullWidth
-                              label="Kategori Event"
-                              placeholder="Teknologi, Bisnis, Pendidikan, dll"
-                              error={!!errors.category}
-                              helperText={errors.category?.message}
+                    <Controller
+                      name="category"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Kategori Event"
+                          placeholder="Teknologi, Bisnis, Pendidikan, dll"
+                          error={!!errors.category}
+                          helperText={errors.category?.message as string}
                               sx={{
                                 '& .MuiOutlinedInput-root': {
                                   borderRadius: 2,
@@ -525,7 +601,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                             type="number"
                             placeholder="0 untuk gratis"
                             error={!!errors.price}
-                            helperText={errors.price?.message || "Masukkan 0 jika event gratis"}
+                            helperText={(errors.price?.message as string) || "Masukkan 0 jika event gratis"}
                             sx={{
                               '& .MuiOutlinedInput-root': {
                                 borderRadius: 2,
@@ -539,8 +615,6 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           />
                         )}
                       />
-                    </>
-                  )}
                 </Box>
               </CardContent>
             </Card>
@@ -578,9 +652,9 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           label="Tanggal Event"
                           type="date"
                           InputLabelProps={{ shrink: true }}
-                          inputProps={{ min: minDateString }}
+                          inputProps={isOrganizer ? { min: minDateString } : {}}
                           error={!!errors.date}
-                          helperText={errors.date?.message || `Minimal H-3 dari hari ini (${minDateString})`}
+                          helperText={(errors.date?.message as string) || (isOrganizer ? `Minimal H-3 dari hari ini (${minDateString})` : 'Pilih tanggal event')}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 2,
@@ -607,7 +681,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                         type="time"
                         InputLabelProps={{ shrink: true }}
                         error={!!errors.start_time}
-                        helperText={errors.start_time?.message}
+                        helperText={errors.start_time?.message as string}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
@@ -633,7 +707,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                         type="time"
                         InputLabelProps={{ shrink: true }}
                         error={!!errors.end_time}
-                        helperText={errors.end_time?.message}
+                        helperText={errors.end_time?.message as string}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
@@ -667,7 +741,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           label="Lokasi Event"
                           placeholder="Masukkan alamat lengkap event atau pilih dari peta"
                           error={!!errors.location}
-                          helperText={errors.location?.message || "Klik tombol peta untuk memilih lokasi dengan mudah"}
+                          helperText={(errors.location?.message as string) || "Klik tombol peta untuk memilih lokasi dengan mudah"}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 2,
@@ -714,7 +788,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           InputLabelProps={{ shrink: true }}
                           inputProps={{ min: today }}
                           error={!!errors.registration_deadline}
-                          helperText={errors.registration_deadline?.message || "Harus sebelum tanggal event"}
+                          helperText={(errors.registration_deadline?.message as string) || "Harus sebelum tanggal event"}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 2,
@@ -741,7 +815,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                         type="number"
                         placeholder="Contoh: 100"
                         error={!!errors.max_participants}
-                        helperText={errors.max_participants?.message}
+                        helperText={errors.max_participants?.message as string}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
@@ -837,23 +911,22 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
               </CardContent>
             </Card>
 
-            {/* EO-Specific Organizer Information Section */}
-            {isOrganizer && (
-              <Card sx={{ mb: 4, borderRadius: 2, border: '1px solid rgba(244, 114, 182, 0.2)', bgcolor: 'rgba(244, 114, 182, 0.02)' }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                    <Avatar sx={{ bgcolor: '#f472b6', width: 40, height: 40 }}>
-                      <OrganizerIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: '#f472b6' }}>
-                        👤 Informasi Penyelenggara (EO)
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Masukkan informasi lengkap penyelenggara event
-                      </Typography>
-                    </Box>
+            {/* Organizer Information Section - Show for both Admin and EO */}
+            <Card sx={{ mb: 4, borderRadius: 2, border: '1px solid rgba(244, 114, 182, 0.2)', bgcolor: 'rgba(244, 114, 182, 0.02)' }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                  <Avatar sx={{ bgcolor: '#f472b6', width: 40, height: 40 }}>
+                    <OrganizerIcon />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: '#f472b6' }}>
+                      👤 Informasi Penyelenggara
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Masukkan informasi lengkap penyelenggara event
+                    </Typography>
                   </Box>
+                </Box>
                   
                   <Box sx={{ display: 'grid', gap: 3 }}>
                     <Controller
@@ -866,7 +939,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           label="Nama Penyelenggara"
                           placeholder="Masukkan nama lengkap atau organisasi penyelenggara"
                           error={!!errors.organizer_name}
-                          helperText={errors.organizer_name?.message}
+                          helperText={errors.organizer_name?.message as string}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 2,
@@ -893,7 +966,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                             type="email"
                             placeholder="email@organizer.com"
                             error={!!errors.organizer_email}
-                            helperText={errors.organizer_email?.message}
+                            helperText={errors.organizer_email?.message as string}
                             sx={{
                               '& .MuiOutlinedInput-root': {
                                 borderRadius: 2,
@@ -918,7 +991,7 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                             label="Kontak Penyelenggara"
                             placeholder="+62812345678 atau nomor WhatsApp"
                             error={!!errors.organizer_contact}
-                            helperText={errors.organizer_contact?.message}
+                            helperText={errors.organizer_contact?.message as string}
                             sx={{
                               '& .MuiOutlinedInput-root': {
                                 borderRadius: 2,
@@ -935,26 +1008,44 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                     </Box>
                   </Box>
 
-                  {/* Status Information for EO */}
-                  <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(245, 158, 11, 0.1)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                    <Typography variant="body2" sx={{ color: '#f59e0b', fontWeight: 600, mb: 1 }}>
-                      ⚠️ Informasi Penting untuk Event Organizer:
-                    </Typography>
-                    <Box component="ul" sx={{ m: 0, pl: 2, '& li': { mb: 0.5 } }}>
-                      <Typography component="li" variant="body2" color="text.secondary">
-                        Event yang Anda buat akan masuk ke status "Menunggu Persetujuan"
+                  {/* Status Information - Different message for Admin vs EO */}
+                  {isOrganizer ? (
+                    <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(245, 158, 11, 0.1)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                      <Typography variant="body2" sx={{ color: '#f59e0b', fontWeight: 600, mb: 1 }}>
+                        ⚠️ Informasi Penting untuk Event Organizer:
                       </Typography>
-                      <Typography component="li" variant="body2" color="text.secondary">
-                        Admin akan meninjau dan menyetujui event sebelum dipublikasikan
-                      </Typography>
-                      <Typography component="li" variant="body2" color="text.secondary">
-                        Anda akan mendapat notifikasi setelah event disetujui atau ditolak
-                      </Typography>
+                      <Box component="ul" sx={{ m: 0, pl: 2, '& li': { mb: 0.5 } }}>
+                        <Typography component="li" variant="body2" color="text.secondary">
+                          Event yang Anda buat akan masuk ke status "Menunggu Persetujuan"
+                        </Typography>
+                        <Typography component="li" variant="body2" color="text.secondary">
+                          Admin akan meninjau dan menyetujui event sebelum dipublikasikan
+                        </Typography>
+                        <Typography component="li" variant="body2" color="text.secondary">
+                          Anda akan mendapat notifikasi setelah event disetujui atau ditolak
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
+                  ) : (
+                    <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(16, 185, 129, 0.1)', borderRadius: 2, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                      <Typography variant="body2" sx={{ color: '#10b981', fontWeight: 600, mb: 1 }}>
+                        ✅ Informasi untuk Admin:
+                      </Typography>
+                      <Box component="ul" sx={{ m: 0, pl: 2, '& li': { mb: 0.5 } }}>
+                        <Typography component="li" variant="body2" color="text.secondary">
+                          Event yang Anda buat akan langsung dipublikasikan
+                        </Typography>
+                        <Typography component="li" variant="body2" color="text.secondary">
+                          Tidak perlu menunggu persetujuan karena Anda adalah admin
+                        </Typography>
+                        <Typography component="li" variant="body2" color="text.secondary">
+                          Pastikan semua informasi penyelenggara sudah benar
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                 </CardContent>
               </Card>
-            )}
 
             {/* Image Upload Section */}
             <Card sx={{ mb: 4, borderRadius: 2, border: '1px solid rgba(168, 85, 247, 0.1)' }}>
@@ -1062,6 +1153,12 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                 variant="contained"
                 startIcon={isLoading ? <CircularProgress size={16} /> : <Save />}
                 disabled={isLoading}
+                onClick={(e) => {
+                  console.log('🖱️ Button clicked!');
+                  console.log('🔍 Form errors at button click:', errors);
+                  console.log('🔍 isLoading:', isLoading);
+                  // Let form submit handle it, but log for debugging
+                }}
                 sx={{
                   bgcolor: '#4f46e5',
                   borderRadius: 2,
@@ -1110,6 +1207,22 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
             <Button onClick={() => setMapDialogOpen(false)}>Batal</Button>
           </DialogActions>
         </Dialog>
+
+        {/* Error Snackbar */}
+        <Snackbar 
+          open={!!error} 
+          autoHideDuration={6000} 
+          onClose={() => setError(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setError(null)} 
+            severity="error" 
+            sx={{ width: '100%', fontSize: '1rem' }}
+          >
+            <strong>Error:</strong> {error}
+          </Alert>
+        </Snackbar>
       </Container>
     </Box>
   );
