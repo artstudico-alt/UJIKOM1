@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -8,7 +8,6 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Grid,
   Switch,
   FormControlLabel,
   Card,
@@ -26,6 +25,8 @@ import {
   DialogActions,
   IconButton,
   Snackbar,
+  Checkbox,
+  FormGroup,
 } from '@mui/material';
 import {
   Save,
@@ -43,11 +44,15 @@ import {
   Map as MapIcon,
   MyLocation as MyLocationIcon,
   Close as CloseIcon,
+  Payment as PaymentIcon,
+  AccountBalance as BankIcon,
+  CreditCard as CardIcon,
+  Wallet as WalletIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { EventFormData } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -111,12 +116,33 @@ interface EventFormProps {
 
 const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false, isOrganizer = false }) => {
   const navigate = useNavigate();
+  // Support both 'id' and 'eventId' route parameters
+  const { id, eventId: paramEventId } = useParams<{ id?: string; eventId?: string }>();
+  const eventId = id || paramEventId; // Use whichever is present
   const { user } = useAuth();
+  
+  console.log('🔍 EventForm Params Debug:', { id, paramEventId, finalEventId: eventId, isEdit, isOrganizer });
+  
+  // Auto-detect edit mode if eventId exists in URL
+  const isEditMode = isEdit || (!isCreate && !!eventId);
+  
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(isEditMode);
   const [error, setError] = useState<string | null>(null);
   const [certificateEnabled, setCertificateEnabled] = useState(false);
   const [mapDialogOpen, setMapDialogOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number, address: string} | null>(null);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  
+  // Payment settings state
+  const [isPaidEvent, setIsPaidEvent] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  const [bankAccountInfo, setBankAccountInfo] = useState({
+    bankName: '',
+    accountNumber: '',
+    accountHolder: ''
+  });
+  const [paymentInstructions, setPaymentInstructions] = useState('');
 
   // Create schema based on user role
   const schema = createSchema(isOrganizer);
@@ -125,6 +151,8 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
     control,
     handleSubmit,
     setValue,
+    reset,
+    watch,
     formState: { errors },
   } = useForm({
     mode: 'onSubmit', // Only validate on submit, not on change
@@ -154,9 +182,161 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
     } as any,
   });
 
+  // Watch price field and auto-sync isPaidEvent switch
+  const priceValue = watch('price');
+  useEffect(() => {
+    const price = Number(priceValue) || 0;
+    if (price > 0 && !isPaidEvent) {
+      console.log('💰 Auto-enabling paid event mode, price:', price);
+      setIsPaidEvent(true);
+    } else if (price === 0 && isPaidEvent) {
+      console.log('💰 Auto-disabling paid event mode, price is 0');
+      setIsPaidEvent(false);
+    }
+  }, [priceValue]);
+
+  // Load event data when in edit mode
+  useEffect(() => {
+    const loadEventData = async () => {
+      console.log('🔄 EventForm: loadEventData triggered', { isEditMode, eventId, isOrganizer });
+      
+      if (!isEditMode || !eventId) {
+        console.log('⏭️ EventForm: Skipping load - not edit mode or no eventId');
+        setLoadingData(false);
+        return;
+      }
+
+      try {
+        console.log('📥 EventForm: Starting to load event data for ID:', eventId);
+        setLoadingData(true);
+        setError(null);
+
+        let eventData;
+        
+        if (isOrganizer) {
+          console.log('🔵 EventForm: Loading via organizerApiService');
+          const { organizerApiService } = await import('../../services/organizerApiService');
+          const response = await organizerApiService.getEventById(eventId);
+          eventData = response.data;
+        } else {
+          console.log('🔵 EventForm: Loading via adminApiService');
+          const { adminApiService } = await import('../../services/adminApiService');
+          const response = await adminApiService.getEventById(eventId);
+          eventData = response.data;
+        }
+
+        console.log('✅ EventForm: Event data loaded successfully:', eventData);
+
+        if (eventData) {
+          // Pre-fill form with existing data
+          console.log('📝 EventForm: Populating form with event data:', {
+            title: eventData.title,
+            date: eventData.date,
+            start_time: eventData.start_time,
+            end_time: eventData.end_time,
+            location: eventData.location,
+            max_participants: eventData.max_participants,
+            price: eventData.price
+          });
+          
+          const formData = {
+            title: eventData.title || '',
+            description: eventData.description || '',
+            date: eventData.date || '',
+            start_time: eventData.start_time || '',
+            end_time: eventData.end_time || '',
+            location: eventData.location || '',
+            max_participants: eventData.max_participants || 50,
+            registration_deadline: eventData.registration_deadline || '',
+            registration_date: eventData.registration_date || '',
+            price: eventData.price || 0,
+            event_type: eventData.event_type || 'workshop',
+            category: eventData.category || '',
+            organizer_name: eventData.organizer_name || '',
+            organizer_email: eventData.organizer_email || '',
+            organizer_contact: eventData.organizer_contact || '',
+          };
+          
+          console.log('📋 EventForm: Form data to populate:', formData);
+          reset(formData);
+          console.log('✅ EventForm: Form reset() called with data');
+
+          // Set payment settings if event is paid
+          if (eventData.price && eventData.price > 0) {
+            setIsPaidEvent(true);
+            console.log('💳 EventForm: Paid event detected, price:', eventData.price);
+            
+            // Load payment methods if available
+            if (eventData.payment_methods) {
+              try {
+                const methods = Array.isArray(eventData.payment_methods) 
+                  ? eventData.payment_methods 
+                  : typeof eventData.payment_methods === 'string'
+                    ? JSON.parse(eventData.payment_methods)
+                    : [];
+                setPaymentMethods(methods);
+                console.log('💳 EventForm: Payment methods loaded:', methods);
+              } catch (err) {
+                console.error('Error parsing payment_methods:', err);
+                setPaymentMethods([]);
+              }
+            }
+            
+            // Load bank account info if available
+            if (eventData.bank_account_info) {
+              try {
+                const bankInfo = typeof eventData.bank_account_info === 'string'
+                  ? JSON.parse(eventData.bank_account_info)
+                  : eventData.bank_account_info;
+                setBankAccountInfo(bankInfo || { bankName: '', accountNumber: '', accountHolder: '' });
+                console.log('🏦 EventForm: Bank account info loaded');
+              } catch (err) {
+                console.error('Error parsing bank_account_info:', err);
+                setBankAccountInfo({ bankName: '', accountNumber: '', accountHolder: '' });
+              }
+            }
+            
+            // Load payment instructions if available
+            if (eventData.payment_instructions) {
+              setPaymentInstructions(eventData.payment_instructions);
+              console.log('📝 EventForm: Payment instructions loaded');
+            }
+          }
+
+          // Set certificate enabled state
+          if (eventData.has_certificate || eventData.certificate_required) {
+            setCertificateEnabled(true);
+            console.log('📜 EventForm: Certificate enabled');
+          }
+
+          // Set location if exists
+          if (eventData.location) {
+            setSelectedLocation({
+              lat: eventData.latitude || 0,
+              lng: eventData.longitude || 0,
+              address: eventData.location
+            });
+            console.log('📍 EventForm: Location set:', eventData.location);
+          }
+        } else {
+          console.warn('⚠️ EventForm: No event data received');
+        }
+      } catch (err: any) {
+        console.error('Error loading event data:', err);
+        setError(err.response?.data?.message || 'Gagal memuat data event');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    loadEventData();
+  }, [isEditMode, eventId, isOrganizer, reset]);
+
   const handleSave = async (data: EventFormData) => {
     console.log('🚀 handleSave called with data:', data);
+    console.log('🔍 isEditMode:', isEditMode);
     console.log('🔍 isOrganizer:', isOrganizer);
+    console.log('🔍 eventId:', eventId);
     console.log('🔍 Form errors:', errors);
     
     setIsLoading(true);
@@ -164,6 +344,65 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
 
     try {
       console.log('✅ Starting save process...');
+
+      // If edit mode, update event
+      if (isEditMode && eventId) {
+        // Auto-detect paid event from price value
+        const eventPrice = data.price || 0;
+        const isEventPaid = eventPrice > 0;
+        
+        console.log('💰 Price Info:', { eventPrice, isEventPaid, isPaidEventState: isPaidEvent });
+        
+        const eventData: any = {
+          title: data.title,
+          description: data.description,
+          date: data.date,
+          start_time: data.start_time || '',
+          end_time: data.end_time || '',
+          location: data.location,
+          max_participants: data.max_participants,
+          registration_deadline: data.registration_deadline || '',
+          registration_date: data.registration_date || data.registration_deadline || data.date,
+          price: eventPrice, // Use actual price value, not conditional
+          organizer_name: data.organizer_name || '',
+          organizer_email: data.organizer_email || '',
+          organizer_contact: data.organizer_contact || '',
+          event_type: data.event_type || 'workshop',
+          category: data.category || '',
+          // Payment settings - only save if event is paid
+          payment_methods: isEventPaid ? JSON.stringify(paymentMethods) : null,
+          bank_account_info: isEventPaid && paymentMethods.includes('bank_transfer') ? JSON.stringify(bankAccountInfo) : null,
+          payment_instructions: isEventPaid ? paymentInstructions : null,
+        };
+
+        if (isOrganizer) {
+          const { organizerApiService } = await import('../../services/organizerApiService');
+          const response = await organizerApiService.updateEvent(eventId, eventData);
+          
+          if (response.status === 'success') {
+            navigate('/organizer/events', { 
+              state: { 
+                message: 'Event berhasil diperbarui',
+                refresh: true 
+              }
+            });
+            return;
+          }
+        } else {
+          const { adminApiService } = await import('../../services/adminApiService');
+          const response = await adminApiService.updateEvent(eventId, eventData);
+          
+          if (response.status === 'success') {
+            navigate('/admin/events', { 
+              state: { 
+                message: 'Event berhasil diperbarui',
+                refresh: true 
+              }
+            });
+            return;
+          }
+        }
+      }
       
       if (isOrganizer) {
         // Use organizer API service
@@ -245,6 +484,12 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
         const { adminApiService } = await import('../../services/adminApiService');
         console.log('✅ adminApiService imported');
         
+        // Auto-detect paid event from price value
+        const eventPrice = data.price || 0;
+        const isEventPaid = eventPrice > 0;
+        
+        console.log('💰 Admin Price Info:', { eventPrice, isEventPaid, isPaidEventState: isPaidEvent });
+        
         // Create event object for API
         const eventData: any = {
           title: data.title,
@@ -256,12 +501,16 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
           max_participants: data.max_participants,
           registration_deadline: data.registration_deadline || '',
           registration_date: data.registration_date || data.registration_deadline || data.date,
-          price: data.price || 0,
+          price: eventPrice, // Use actual price value, not conditional
           organizer_name: data.organizer_name || '',
           organizer_email: data.organizer_email || '',
           organizer_contact: data.organizer_contact || '',
           event_type: data.event_type || 'workshop',
           category: data.category || '',
+          // Payment settings - only save if event is paid
+          payment_methods: isEventPaid ? JSON.stringify(paymentMethods) : null,
+          bank_account_info: isEventPaid && paymentMethods.includes('bank_transfer') ? JSON.stringify(bankAccountInfo) : null,
+          payment_instructions: isEventPaid ? paymentInstructions : null,
           status: 'published', // Admin events are published immediately
           organizer_type: 'admin'
         };
@@ -336,8 +585,84 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
   // Location picker functions
   const handleLocationSelect = useCallback((location: {lat: number, lng: number, address: string}) => {
     setSelectedLocation(location);
+    setValue('location', location.address);
     setMapDialogOpen(false);
-  }, []);
+  }, [setValue]);
+
+  const handleDetectLocation = async () => {
+    setDetectingLocation(true);
+    setError(null);
+
+    try {
+      if (!navigator.geolocation) {
+        throw new Error('Geolocation tidak didukung oleh browser Anda');
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+
+          try {
+            // Reverse geocoding using Nominatim (OpenStreetMap)
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            );
+            const data = await response.json();
+
+            if (data && data.display_name) {
+              // Format address from components
+              const address = data.address;
+              let formattedAddress = '';
+
+              if (address.road) formattedAddress += address.road;
+              if (address.suburb) formattedAddress += (formattedAddress ? ', ' : '') + address.suburb;
+              if (address.city || address.city_district) {
+                formattedAddress += (formattedAddress ? ', ' : '') + (address.city || address.city_district);
+              }
+              if (address.state) formattedAddress += (formattedAddress ? ', ' : '') + address.state;
+              if (address.country) formattedAddress += (formattedAddress ? ', ' : '') + address.country;
+
+              const finalAddress = formattedAddress || data.display_name;
+              
+              // Update location
+              setSelectedLocation({ lat: latitude, lng: longitude, address: finalAddress });
+              setValue('location', finalAddress);
+            } else {
+              throw new Error('Tidak dapat menemukan alamat dari lokasi Anda');
+            }
+          } catch (err: any) {
+            setError('Gagal mendapatkan alamat dari koordinat');
+          } finally {
+            setDetectingLocation(false);
+          }
+        },
+        (error) => {
+          setDetectingLocation(false);
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setError('Akses lokasi ditolak. Silakan izinkan akses lokasi di browser Anda.');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setError('Informasi lokasi tidak tersedia.');
+              break;
+            case error.TIMEOUT:
+              setError('Permintaan lokasi timeout.');
+              break;
+            default:
+              setError('Terjadi kesalahan saat mendapatkan lokasi.');
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    } catch (err: any) {
+      setDetectingLocation(false);
+      setError(err.message || 'Gagal mendeteksi lokasi');
+    }
+  };
 
   const getCurrentLocation = useCallback(() => {
     if (navigator.geolocation) {
@@ -398,6 +723,20 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
     </Box>
   );
 
+  // Show loading while fetching data
+  if (loadingData) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress size={60} sx={{ color: '#4f46e5', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">
+            Memuat data event...
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ minHeight: '100%', bgcolor: '#f8fafc', py: 4 }}>
       <Container maxWidth="lg">
@@ -439,6 +778,12 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
             <Chip 
               label={certificateEnabled ? "🎓 Certificate: Aktif" : "🎓 Certificate: Nonaktif"} 
               color={certificateEnabled ? "success" : "default"}
+              size="small"
+              sx={{ fontWeight: 600 }}
+            />
+            <Chip 
+              label={isPaidEvent ? `💰 Berbayar: Rp ${control._formValues.price || 0}` : "✅ Gratis"} 
+              color={isPaidEvent ? "warning" : "success"}
               size="small"
               sx={{ fontWeight: 600 }}
             />
@@ -589,33 +934,227 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           )}
                         />
                       </Box>
+                </Box>
+              </CardContent>
+            </Card>
 
-                      <Controller
-                        name="price"
-                        control={control}
-                        render={({ field }) => (
-                          <TextField
-                            {...field}
-                            fullWidth
-                            label="Harga Tiket (IDR)"
-                            type="number"
-                            placeholder="0 untuk gratis"
-                            error={!!errors.price}
-                            helperText={(errors.price?.message as string) || "Masukkan 0 jika event gratis"}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: 2,
-                                '&:hover': {
-                                  '& .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: '#4f46e5',
-                                  }
+            {/* Payment Settings Section */}
+            <Card sx={{ mb: 4, borderRadius: 2, border: '1px solid rgba(16, 185, 129, 0.2)', bgcolor: 'rgba(16, 185, 129, 0.02)' }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                  <Avatar sx={{ bgcolor: '#10b981', width: 40, height: 40 }}>
+                    <PaymentIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: '#10b981' }}>
+                      💳 Pengaturan Pembayaran
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Atur harga tiket dan metode pembayaran untuk event
+                    </Typography>
+                  </Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={isPaidEvent}
+                        onChange={(e) => {
+                          setIsPaidEvent(e.target.checked);
+                          if (!e.target.checked) {
+                            setValue('price', 0);
+                            setPaymentMethods([]);
+                            setBankAccountInfo({ bankName: '', accountNumber: '', accountHolder: '' });
+                            setPaymentInstructions('');
+                          }
+                        }}
+                        color="success"
+                      />
+                    }
+                    label={isPaidEvent ? "Event Berbayar" : "Event Gratis"}
+                  />
+                </Box>
+
+                {isPaidEvent && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {/* Price Field */}
+                    <Controller
+                      name="price"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Harga Tiket (IDR) *"
+                          type="number"
+                          placeholder="Masukkan harga tiket"
+                          error={!!errors.price}
+                          helperText={errors.price?.message as string}
+                          inputProps={{
+                            min: 0,
+                            step: 1000
+                          }}
+                          InputProps={{
+                            startAdornment: <Typography sx={{ mr: 1, color: 'text.secondary' }}>Rp</Typography>
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 2,
+                              '&:hover': {
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#10b981',
                                 }
                               }
-                            }}
+                            }
+                          }}
+                        />
+                      )}
+                    />
+
+                    {/* Payment Methods */}
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5, color: '#10b981' }}>
+                        💳 Metode Pembayaran yang Diterima
+                      </Typography>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={paymentMethods.includes('bank_transfer')}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setPaymentMethods([...paymentMethods, 'bank_transfer']);
+                                } else {
+                                  setPaymentMethods(paymentMethods.filter(m => m !== 'bank_transfer'));
+                                }
+                              }}
+                              color="success"
+                            />
+                          }
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <BankIcon sx={{ fontSize: 20, color: '#10b981' }} />
+                              <Typography variant="body2">Transfer Bank</Typography>
+                            </Box>
+                          }
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={paymentMethods.includes('e_wallet')}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setPaymentMethods([...paymentMethods, 'e_wallet']);
+                                } else {
+                                  setPaymentMethods(paymentMethods.filter(m => m !== 'e_wallet'));
+                                }
+                              }}
+                              color="success"
+                            />
+                          }
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <WalletIcon sx={{ fontSize: 20, color: '#10b981' }} />
+                              <Typography variant="body2">E-Wallet (OVO, GoPay, DANA, dll)</Typography>
+                            </Box>
+                          }
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={paymentMethods.includes('credit_card')}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setPaymentMethods([...paymentMethods, 'credit_card']);
+                                } else {
+                                  setPaymentMethods(paymentMethods.filter(m => m !== 'credit_card'));
+                                }
+                              }}
+                              color="success"
+                            />
+                          }
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <CardIcon sx={{ fontSize: 20, color: '#10b981' }} />
+                              <Typography variant="body2">Kartu Kredit/Debit</Typography>
+                            </Box>
+                          }
+                        />
+                      </FormGroup>
+                    </Box>
+
+                    {/* Bank Account Info (if bank transfer selected) */}
+                    {paymentMethods.includes('bank_transfer') && (
+                      <Box sx={{ p: 2, bgcolor: 'rgba(16, 185, 129, 0.05)', borderRadius: 2, border: '1px dashed #10b981' }}>
+                        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2, color: '#10b981' }}>
+                          🏦 Informasi Rekening Bank
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Nama Bank"
+                            placeholder="BCA, Mandiri, BNI, dll"
+                            value={bankAccountInfo.bankName}
+                            onChange={(e) => setBankAccountInfo({ ...bankAccountInfo, bankName: e.target.value })}
+                            sx={{ bgcolor: 'white', flex: 1 }}
                           />
-                        )}
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Nomor Rekening"
+                            placeholder="1234567890"
+                            value={bankAccountInfo.accountNumber}
+                            onChange={(e) => setBankAccountInfo({ ...bankAccountInfo, accountNumber: e.target.value })}
+                            sx={{ bgcolor: 'white', flex: 1 }}
+                          />
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Atas Nama"
+                            placeholder="Nama pemilik rekening"
+                            value={bankAccountInfo.accountHolder}
+                            onChange={(e) => setBankAccountInfo({ ...bankAccountInfo, accountHolder: e.target.value })}
+                            sx={{ bgcolor: 'white', flex: 1 }}
+                          />
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Payment Instructions */}
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5, color: '#10b981' }}>
+                        📝 Instruksi Pembayaran (Opsional)
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={4}
+                        placeholder="Berikan instruksi pembayaran kepada peserta, misalnya cara transfer, konfirmasi pembayaran, dll."
+                        value={paymentInstructions}
+                        onChange={(e) => setPaymentInstructions(e.target.value)}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                          }
+                        }}
                       />
-                </Box>
+                    </Box>
+
+                    <Alert severity="info" sx={{ borderRadius: 2 }}>
+                      <Typography variant="body2">
+                        💡 <strong>Tips:</strong> Peserta akan melihat metode pembayaran dan instruksi ini saat mendaftar event.
+                        Pastikan informasi yang diberikan jelas dan lengkap.
+                      </Typography>
+                    </Alert>
+                  </Box>
+                )}
+
+                {!isPaidEvent && (
+                  <Alert severity="success" sx={{ borderRadius: 2 }}>
+                    <Typography variant="body2">
+                      ✅ Event ini <strong>gratis</strong>. Peserta dapat mendaftar tanpa pembayaran.
+                    </Typography>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 
@@ -754,13 +1293,23 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
                           }}
                           InputProps={{
                             endAdornment: (
-                              <IconButton 
-                                onClick={() => setMapDialogOpen(true)}
-                                sx={{ color: '#6366f1' }}
-                                title="Pilih lokasi dari peta"
-                              >
-                                <MapIcon />
-                              </IconButton>
+                              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                <IconButton 
+                                  onClick={handleDetectLocation}
+                                  disabled={detectingLocation}
+                                  sx={{ color: '#10b981' }}
+                                  title="Deteksi lokasi saya"
+                                >
+                                  {detectingLocation ? <CircularProgress size={20} /> : <MyLocationIcon />}
+                                </IconButton>
+                                <IconButton 
+                                  onClick={() => setMapDialogOpen(true)}
+                                  sx={{ color: '#6366f1' }}
+                                  title="Pilih lokasi dari peta"
+                                >
+                                  <MapIcon />
+                                </IconButton>
+                              </Box>
                             )
                           }}
                         />
@@ -1201,7 +1750,43 @@ const EventForm: React.FC<EventFormProps> = ({ isCreate = false, isEdit = false,
             </IconButton>
           </DialogTitle>
           <DialogContent>
-            <MapPicker />
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <MapIcon sx={{ fontSize: 80, color: '#9e9e9e', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Peta Interaktif
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Klik pada peta untuk memilih lokasi event
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<MyLocationIcon />}
+                  onClick={handleDetectLocation}
+                  disabled={detectingLocation}
+                  sx={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #5568d3 0%, #63408a 100%)',
+                    },
+                  }}
+                >
+                  {detectingLocation ? 'Mendeteksi...' : 'Gunakan Lokasi Saat Ini'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setValue('location', 'Jakarta Pusat, DKI Jakarta, Indonesia');
+                    setMapDialogOpen(false);
+                  }}
+                >
+                  Pilih Jakarta Pusat
+                </Button>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                * Integrasi peta penuh akan tersedia setelah konfigurasi API key
+              </Typography>
+            </Box>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setMapDialogOpen(false)}>Batal</Button>

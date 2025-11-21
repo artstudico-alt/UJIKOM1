@@ -110,6 +110,8 @@ class OrganizerEventController extends Controller
                 $filename = time() . '_' . $file->getClientOriginalName();
                 $path = $file->storeAs('event_flyers', $filename, 'public');
                 $eventData['flyer_path'] = $path;
+                // Generate full URL like admin does
+                $eventData['image_url'] = asset('storage/' . $path);
             } elseif ($request->has('image_url') && !empty($request->image_url)) {
                 // For URL-based images, we'll store the URL in a custom field
                 // This will be handled in the EventResource
@@ -185,11 +187,12 @@ class OrganizerEventController extends Controller
                 ], 403);
             }
 
-            // Check if event can be updated (only draft and rejected events)
-            if (!in_array($event->status, ['draft', 'rejected'])) {
+            // Check if event can be updated (draft, rejected, and pending_approval events)
+            // Allow pending_approval so EO can edit before admin approves
+            if (!in_array($event->status, ['draft', 'rejected', 'pending_approval'])) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Event cannot be updated in current status: ' . $event->status
+                    'message' => 'Event cannot be updated in current status: ' . $event->status . '. Only draft, rejected, or pending approval events can be edited.'
                 ], 400);
             }
 
@@ -233,6 +236,8 @@ class OrganizerEventController extends Controller
                 $filename = time() . '_' . $file->getClientOriginalName();
                 $path = $file->storeAs('event_flyers', $filename, 'public');
                 $eventData['flyer_path'] = $path;
+                // Generate full URL like admin does
+                $eventData['image_url'] = asset('storage/' . $path);
             } elseif ($request->has('image_url') && !empty($request->image_url)) {
                 $eventData['image_url'] = $request->image_url;
             }

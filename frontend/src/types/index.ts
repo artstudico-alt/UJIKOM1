@@ -8,6 +8,7 @@ export interface User {
   address?: string;
   education?: string;
   profile_image?: string;
+  profile_picture?: string;
   status: 'active' | 'inactive' | 'suspended';
   is_verified: boolean;
   email_verified_at?: string;
@@ -32,6 +33,9 @@ export interface Event {
   flyer_path?: string;
   certificate_template_path?: string;
   registration_deadline: string;
+  price?: number;
+  event_type?: 'workshop' | 'seminar' | 'conference' | 'webinar' | 'training' | 'other';
+  category?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -114,6 +118,12 @@ export interface PasswordResetData {
   token: string;
   password: string;
   password_confirmation: string;
+}
+
+export interface PasswordChangeData {
+  current_password: string;
+  new_password: string;
+  new_password_confirmation: string;
 }
 
 // API Response Types

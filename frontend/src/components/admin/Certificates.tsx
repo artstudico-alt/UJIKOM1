@@ -210,7 +210,8 @@ const Certificates: React.FC = () => {
       }}>
         <Card sx={{ 
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white'
+          color: 'white',
+          boxShadow: '0 4px 20px rgba(102, 126, 234, 0.2)'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -227,8 +228,9 @@ const Certificates: React.FC = () => {
           </CardContent>
         </Card>
         <Card sx={{ 
-          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-          color: 'white'
+          background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+          color: 'white',
+          boxShadow: '0 4px 20px rgba(90, 103, 216, 0.2)'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -245,8 +247,9 @@ const Certificates: React.FC = () => {
           </CardContent>
         </Card>
         <Card sx={{ 
-          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-          color: 'white'
+          background: 'linear-gradient(135deg, #4c51bf 0%, #553c9a 100%)',
+          color: 'white',
+          boxShadow: '0 4px 20px rgba(76, 81, 191, 0.2)'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -263,8 +266,9 @@ const Certificates: React.FC = () => {
           </CardContent>
         </Card>
         <Card sx={{ 
-          background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-          color: 'white'
+          background: 'linear-gradient(135deg, #434190 0%, #4a2c7d 100%)',
+          color: 'white',
+          boxShadow: '0 4px 20px rgba(67, 65, 144, 0.2)'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

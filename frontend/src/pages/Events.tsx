@@ -53,10 +53,17 @@ const keyframes = `
 
 const Events: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('date_asc');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [eventTypeFilter, setEventTypeFilter] = useState('all');
+
+  // Debug authentication status
+  console.log('🔐 Events Page Auth Status:', {
+    isAuthenticated,
+    user: user ? { id: user.id, name: user.name, role: user.role } : null
+  });
 
   // Load events from database-first approach
   const { data: eventsData = [], isLoading, error } = useQuery({
@@ -110,15 +117,18 @@ const Events: React.FC = () => {
               title: event.title || '',
               description: event.description || '',
               registrationDate: event.registration_date || event.registration_deadline || '',
+              registration_deadline: event.registration_deadline || '', // CRITICAL: Preserve registration_deadline!
               eventDate: event.date || '',
               date: event.date || '',
               startTime: event.start_time || '',
+              start_time: event.start_time || '', // Preserve original field name
               endTime: event.end_time || '',
+              end_time: event.end_time || '', // Preserve original field name
               location: event.location || '',
               maxParticipants: event.max_participants || 0,
               currentParticipants: 0,
               price: event.price || 0,
-              status: 'published' as const,
+              status: event.status || 'published', // Use backend status, don't hardcode!
               category: event.category || '',
               organizer: event.organizer_name || '',
               organizerName: event.organizer_name || '',
@@ -165,6 +175,15 @@ const Events: React.FC = () => {
     if (!eventsData) return [];
 
     let filteredEvents = eventsData.map((event: any) => {
+      // DEBUG: Log raw event data to check registration_deadline
+      console.log('🔍 Raw Event Data:', {
+        id: event.id,
+        title: event.title || event.name,
+        registration_deadline: event.registration_deadline,
+        date: event.date,
+        eventDate: event.eventDate,
+      });
+      
       // Parse event date - handle both 'date' and 'eventDate' fields
       const eventDateStr = event.eventDate || event.date;
       const eventDate = eventDateStr ? parseISO(eventDateStr) : new Date();
@@ -178,7 +197,7 @@ const Events: React.FC = () => {
         status = 'completed';
       }
 
-      return {
+      const mappedEvent = {
         ...event,
         title: event.name || event.title, // Handle both 'name' and 'title' fields
         status,
@@ -186,7 +205,18 @@ const Events: React.FC = () => {
         start_time: event.startTime || event.start_time || '00:00',
         end_time: event.endTime || event.end_time || '23:59',
         organizer: event.organizerName || event.organizer, // Show organizer name in public
+        registration_deadline: event.registration_deadline, // Explicitly preserve registration_deadline
+        price: event.price || 0, // Explicitly preserve price
       };
+      
+      // DEBUG: Log mapped event data
+      console.log('✅ Mapped Event Data:', {
+        id: mappedEvent.id,
+        title: mappedEvent.title,
+        registration_deadline: mappedEvent.registration_deadline,
+      });
+      
+      return mappedEvent;
     });
 
     // Apply search filter
@@ -201,6 +231,24 @@ const Events: React.FC = () => {
     // Apply status filter
     if (statusFilter !== 'all') {
       filteredEvents = filteredEvents.filter(event => event.status === statusFilter);
+    }
+
+    // Apply event type filter
+    if (eventTypeFilter !== 'all') {
+      console.log('🔍 Filtering by event_type:', eventTypeFilter);
+      console.log('📊 Events before filter:', filteredEvents.length);
+      console.log('📋 Sample event.event_type:', filteredEvents[0]?.event_type);
+      console.log('📋 Sample event.category:', filteredEvents[0]?.category);
+      
+      filteredEvents = filteredEvents.filter(event => {
+        const matches = event.event_type === eventTypeFilter || event.category === eventTypeFilter;
+        if (!matches) {
+          console.log('❌ Event filtered out:', event.title, 'event_type:', event.event_type, 'category:', event.category);
+        }
+        return matches;
+      });
+      
+      console.log('📊 Events after filter:', filteredEvents.length);
     }
 
     // Apply sorting
@@ -219,7 +267,7 @@ const Events: React.FC = () => {
     });
 
     return filteredEvents;
-  }, [eventsData, searchTerm, statusFilter, sortBy]);
+  }, [eventsData, searchTerm, statusFilter, eventTypeFilter, sortBy]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -233,7 +281,13 @@ const Events: React.FC = () => {
     setStatusFilter(event.target.value);
   };
 
+  const handleEventTypeFilterChange = (event: any) => {
+    setEventTypeFilter(event.target.value);
+  };
+
   const handleRegister = (eventId: number) => {
+    // Always go to registration page first (new flow)
+    // For paid events, will redirect to payment after registration
     navigate(`/events/${eventId}/register`);
   };
 
@@ -307,6 +361,42 @@ const Events: React.FC = () => {
               }}
             />
             <FormControl variant="outlined" sx={{ minWidth: { xs: '100%', md: 200 } }}>
+              <InputLabel>Tipe Event</InputLabel>
+              <Select 
+                value={eventTypeFilter} 
+                label="Tipe Event" 
+                onChange={handleEventTypeFilterChange}
+                startAdornment={<FilterList sx={{ mr: 1, ml: 1, color: 'text.secondary' }}/>}
+                sx={{
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  '.MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(255, 255, 255, 0.8)',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'primary.main',
+                    borderWidth: '2px',
+                  },
+                  '.MuiSelect-select': {
+                    pl: 0,
+                  }
+                }}
+              >
+                <MenuItem value="all">Semua Tipe</MenuItem>
+                <MenuItem value="workshop">🛠️ Workshop</MenuItem>
+                <MenuItem value="seminar">🎤 Seminar</MenuItem>
+                <MenuItem value="conference">🏢 Conference</MenuItem>
+                <MenuItem value="webinar">💻 Webinar</MenuItem>
+                <MenuItem value="training">📚 Training</MenuItem>
+                <MenuItem value="Hiburan">🎭 Hiburan</MenuItem>
+                <MenuItem value="other">🎯 Lainnya</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl variant="outlined" sx={{ minWidth: { xs: '100%', md: 200 } }}>
               <InputLabel>Status</InputLabel>
               <Select 
                 value={statusFilter} 
@@ -332,7 +422,7 @@ const Events: React.FC = () => {
                   }
                 }}
               >
-                <MenuItem value="all">Semua</MenuItem>
+                <MenuItem value="all">Semua Status</MenuItem>
                 <MenuItem value="upcoming">Akan Datang</MenuItem>
                 <MenuItem value="ongoing">Berlangsung</MenuItem>
                 <MenuItem value="completed">Selesai</MenuItem>

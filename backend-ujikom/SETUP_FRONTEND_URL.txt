@@ -1,0 +1,53 @@
+========================================
+SETUP FRONTEND URL FOR PASSWORD RESET
+========================================
+
+LANGKAH 1: Buka file .env
+--------------------------
+1. Buka folder: c:\xampp\htdocs\Event-Umum\backend-ujikom
+2. Cari file: .env
+3. Buka dengan text editor (Notepad, VS Code, dll)
+
+LANGKAH 2: Tambahkan FRONTEND_URL
+----------------------------------
+Tambahkan line ini di bagian bawah file .env atau setelah APP_URL:
+
+FRONTEND_URL=http://localhost:3000
+
+Contoh:
+-------
+APP_NAME=Laravel
+APP_ENV=local
+APP_KEY=base64:...
+APP_DEBUG=true
+APP_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:3000    <-- TAMBAHKAN INI
+
+LANGKAH 3: Save file .env
+--------------------------
+Ctrl + S untuk save
+
+LANGKAH 4: Restart Backend Server
+----------------------------------
+Jika backend server sedang running:
+1. Stop server (Ctrl + C di terminal)
+2. Start lagi: php artisan serve
+
+LANGKAH 5: Test
+---------------
+1. Buka: http://localhost:3000/forgot-password
+2. Input email
+3. Cek email
+4. Link sekarang harus: http://localhost:3000/reset-password/...
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Jika masih ke port 8000:
+1. Pastikan file .env sudah di-save
+2. Pastikan tidak ada typo: FRONTEND_URL (huruf besar semua)
+3. Restart backend server
+4. Clear cache: php artisan config:clear
+
+========================================

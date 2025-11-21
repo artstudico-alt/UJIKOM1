@@ -146,6 +146,26 @@ const EventRegistration: React.FC = () => {
     retry: false, // Don't retry on 404
   });
 
+  // Check if registration deadline has passed
+  useEffect(() => {
+    if (eventData?.data?.registration_deadline) {
+      const now = new Date();
+      const deadlineDate = new Date(eventData.data.registration_deadline);
+      // Set deadline to end of day (23:59:59)
+      deadlineDate.setHours(23, 59, 59, 999);
+      
+      console.log('🔍 EventRegistration Deadline Check:');
+      console.log('   Now:', now.toLocaleString('id-ID'));
+      console.log('   Deadline:', deadlineDate.toLocaleString('id-ID'));
+      console.log('   Is Passed:', now > deadlineDate);
+      
+      if (now > deadlineDate) {
+        alert('Maaf, batas waktu pendaftaran sudah lewat.');
+        navigate(`/events/${eventId}`);
+      }
+    }
+  }, [eventData, eventId, navigate]);
+
   // Helper function to get correct image URL
   const getImageUrl = (flyerPath: string) => {
     if (!flyerPath) return '';
@@ -280,8 +300,7 @@ const EventRegistration: React.FC = () => {
       return;
     }
 
-    // All events are now free - register directly
-    // Prepare data for backend (remove phone_country and emergency_phone_country)
+    // Prepare registration data
     const registrationData = {
       name: formData.name,
       email: formData.email,
@@ -291,7 +310,20 @@ const EventRegistration: React.FC = () => {
       special_needs: formData.special_needs || null,
     };
     
-    registerMutation.mutate(registrationData as any);
+    // Check if event is paid
+    const eventPrice = eventData?.data?.price || 0;
+    console.log('💰 Event price:', eventPrice);
+    
+    if (eventPrice > 0) {
+      // PAID EVENT: Save registration data and redirect to payment
+      console.log('💳 Paid event - saving data and redirecting to payment');
+      localStorage.setItem(`registration_${eventId}`, JSON.stringify(registrationData));
+      navigate(`/payment/checkout/${eventId}`);
+    } else {
+      // FREE EVENT: Register directly
+      console.log('✅ Free event - registering directly');
+      registerMutation.mutate(registrationData as any);
+    }
   };
 
   const formatEventDate = (dateString: string) => {
@@ -702,19 +734,31 @@ const EventRegistration: React.FC = () => {
                       🎯 Daftar Event
                     </Typography>
                     <Typography variant="body1" color="text.secondary" mb={2}>
-                      Lengkapi form di bawah ini untuk mendaftar event secara gratis
+                      Lengkapi form di bawah ini untuk mendaftar event
                     </Typography>
                     
-                    {/* Event Info - Always Free */}
-                    <Chip 
-                      label="✨ Event Gratis - Tanpa Biaya Pendaftaran" 
-                      sx={{ 
-                        background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
-                        color: 'white',
-                        fontWeight: 600,
-                        fontSize: '0.9rem'
-                      }}
-                    />
+                    {/* Event Info - Dynamic Based on Price */}
+                    {eventData?.data?.price && eventData.data.price > 0 ? (
+                      <Chip 
+                        label={`💳 Event Berbayar - Rp ${eventData.data.price.toLocaleString('id-ID')}`}
+                        sx={{ 
+                          background: 'linear-gradient(135deg, #2196f3, #1976d2)',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.9rem'
+                        }}
+                      />
+                    ) : (
+                      <Chip 
+                        label="✨ Event Gratis - Tanpa Biaya Pendaftaran" 
+                        sx={{ 
+                          background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.9rem'
+                        }}
+                      />
+                    )}
                   </Card>
 
                   {/* Registration Form */}
@@ -900,6 +944,30 @@ const EventRegistration: React.FC = () => {
           )}
 
 
+          {/* Payment Info for Paid Events */}
+          {eventData?.data?.price && eventData.data.price > 0 && (
+            <Alert 
+              severity="info" 
+              icon={<Info />}
+              sx={{ 
+                mb: 3,
+                borderRadius: 2,
+                border: '2px solid #2196f3',
+                bgcolor: '#e3f2fd',
+                '& .MuiAlert-icon': {
+                  color: '#2196f3'
+                }
+              }}
+            >
+              <Typography variant="body1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                💳 Event Berbayar - Rp {eventData.data.price.toLocaleString('id-ID')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                * Klik "Daftar Event Sekarang" untuk menyelesaikan pembayaran event
+              </Typography>
+            </Alert>
+          )}
+
           {/* Submit Button */}
           <Card elevation={0} sx={{ p: 3, background: 'linear-gradient(135deg, rgba(156, 39, 176, 0.05), rgba(33, 150, 243, 0.05))', border: '1px solid rgba(156, 39, 176, 0.1)', borderRadius: 3 }}>
             <Button
@@ -944,7 +1012,10 @@ const EventRegistration: React.FC = () => {
               color: '#666',
               fontStyle: 'italic'
             }}>
-              ✨ Gratis • Tanpa Biaya • Sertifikat Resmi
+              {eventData?.data?.price && eventData.data.price > 0 
+                ? `💳 Rp ${eventData.data.price.toLocaleString('id-ID')} • Sertifikat Resmi`
+                : '✨ Gratis • Tanpa Biaya • Sertifikat Resmi'
+              }
             </Typography>
           </Card>
 

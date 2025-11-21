@@ -198,52 +198,6 @@ const Settings: React.FC = () => {
         gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' },
         gap: 3 
       }}>
-        {/* General Settings */}
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-              <SettingsIcon color="primary" />
-              <Typography variant="h6" fontWeight={600}>
-                Pengaturan Umum
-              </Typography>
-            </Box>
-            
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <TextField
-                label="Nama Situs"
-                value={settings.siteName}
-                onChange={(e) => handleSettingChange('siteName', e.target.value)}
-                fullWidth
-              />
-              
-              <TextField
-                label="Deskripsi Situs"
-                value={settings.siteDescription}
-                onChange={(e) => handleSettingChange('siteDescription', e.target.value)}
-                fullWidth
-                multiline
-                rows={3}
-              />
-              
-              <TextField
-                label="Email Admin"
-                value={settings.adminEmail}
-                onChange={(e) => handleSettingChange('adminEmail', e.target.value)}
-                fullWidth
-                type="email"
-              />
-              
-              <TextField
-                label="Email Support"
-                value={settings.supportEmail}
-                onChange={(e) => handleSettingChange('supportEmail', e.target.value)}
-                fullWidth
-                type="email"
-              />
-            </Box>
-          </CardContent>
-        </Card>
-
         {/* File & Storage Settings */}
         <Card>
           <CardContent>
@@ -308,62 +262,6 @@ const Settings: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Backup & Maintenance */}
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-              <BackupIcon color="primary" />
-              <Typography variant="h6" fontWeight={600}>
-                Backup & Maintenance
-              </Typography>
-            </Box>
-            
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.autoBackup}
-                    onChange={(e) => handleSettingChange('autoBackup', e.target.checked)}
-                  />
-                }
-                label="Auto Backup"
-              />
-              
-              <FormControl fullWidth>
-                <InputLabel>Frekuensi Backup</InputLabel>
-                <Select
-                  value={settings.backupFrequency}
-                  onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
-                  label="Frekuensi Backup"
-                >
-                  <MenuItem value="daily">Harian</MenuItem>
-                  <MenuItem value="weekly">Mingguan</MenuItem>
-                  <MenuItem value="monthly">Bulanan</MenuItem>
-                </Select>
-              </FormControl>
-              
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<BackupIcon />}
-                  onClick={handleBackup}
-                  fullWidth
-                >
-                  Buat Backup
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<RestoreIcon />}
-                  onClick={handleRestore}
-                  fullWidth
-                >
-                  Restore
-                </Button>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-
         {/* System Configuration */}
         <Card>
           <CardContent>
@@ -418,18 +316,6 @@ const Settings: React.FC = () => {
                   <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
                   <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
                   <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
-                </Select>
-              </FormControl>
-              
-              <FormControl fullWidth>
-                <InputLabel>Bahasa</InputLabel>
-                <Select
-                  value={settings.language}
-                  onChange={(e) => handleSettingChange('language', e.target.value)}
-                  label="Bahasa"
-                >
-                  <MenuItem value="id">Bahasa Indonesia</MenuItem>
-                  <MenuItem value="en">English</MenuItem>
                 </Select>
               </FormControl>
             </Box>

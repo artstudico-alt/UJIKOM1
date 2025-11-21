@@ -100,8 +100,32 @@ const EventDetail: React.FC = () => {
       return;
     }
     
-    // Navigate to registration form
-    navigate(`/events/${eventId}/register`);
+    // Check if registration deadline has passed
+    if (event?.registration_deadline) {
+      const now = new Date();
+      const deadlineDate = new Date(event.registration_deadline);
+      // Set deadline to end of day (23:59:59)
+      deadlineDate.setHours(23, 59, 59, 999);
+      
+      console.log('🔍 Deadline Check:');
+      console.log('   Now:', now.toLocaleString('id-ID'));
+      console.log('   Deadline:', deadlineDate.toLocaleString('id-ID'));
+      console.log('   Is Passed:', now > deadlineDate);
+      
+      if (now > deadlineDate) {
+        alert('Maaf, batas waktu pendaftaran sudah lewat.');
+        return;
+      }
+    }
+    
+    // Check if event is paid
+    if (event?.price && event.price > 0) {
+      // Redirect to payment checkout
+      navigate(`/payment/checkout/${eventId}`);
+    } else {
+      // Free event - navigate to registration form
+      navigate(`/events/${eventId}/register`);
+    }
   };
 
   const handleConfirmRegistration = async () => {
@@ -121,13 +145,31 @@ const EventDetail: React.FC = () => {
     const now = new Date();
     const eventDate = new Date(event.date + ' ' + event.start_time);
     
+    // PRIORITY 1: Check if event has already started/finished
     if (eventDate < now) {
-      return { label: 'Selesai', color: 'default' as const };
-    } else if (eventDate.getTime() - now.getTime() < 24 * 60 * 60 * 1000) {
-      return { label: 'Sedang Berlangsung', color: 'success' as const };
-    } else {
-      return { label: 'Akan Datang', color: 'primary' as const };
+      return { label: 'Event Sudah Dimulai/Selesai', color: 'default' as const };
     }
+    
+    // PRIORITY 2: Check if registration deadline has passed (but event not started yet)
+    let isDeadlinePassed = false;
+    if (event.registration_deadline) {
+      const deadlineDate = new Date(event.registration_deadline);
+      // Set deadline to end of day (23:59:59)
+      deadlineDate.setHours(23, 59, 59, 999);
+      isDeadlinePassed = now > deadlineDate;
+    }
+    
+    if (isDeadlinePassed) {
+      return { label: 'Pendaftaran Ditutup', color: 'error' as const };
+    }
+    
+    // PRIORITY 3: Check if event is coming soon (within 24 hours)
+    if (eventDate.getTime() - now.getTime() < 24 * 60 * 60 * 1000) {
+      return { label: 'Segera Dimulai', color: 'warning' as const };
+    }
+    
+    // Default: Event is in the future
+    return { label: 'Akan Datang', color: 'primary' as const };
   };
 
   const formatEventDate = (date: string, time?: string) => {
@@ -200,108 +242,29 @@ const EventDetail: React.FC = () => {
   }
 
   const eventStatus = getEventStatus(event);
-  const isRegistrationOpen = event.is_registration_open;
+  
+  // Check if registration deadline has passed
+  const now = new Date();
+  let isDeadlinePassed = false;
+  if (event.registration_deadline) {
+    const deadlineDate = new Date(event.registration_deadline);
+    // Set deadline to end of day (23:59:59)
+    deadlineDate.setHours(23, 59, 59, 999);
+    isDeadlinePassed = now > deadlineDate;
+  }
+  const isRegistrationOpen = event.is_registration_open && !isDeadlinePassed;
   const isUserRegistered = event.is_user_registered || false;
 
   return (
-    <Box sx={{
-      minHeight: '100vh',
-      background: `
-        radial-gradient(circle at 20% 20%, rgba(156, 39, 176, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(33, 150, 243, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 40% 60%, rgba(244, 67, 54, 0.06) 0%, transparent 50%),
-        #f8f9fa
-      `,
-      position: 'relative',
-      overflow: 'hidden',
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: '10%',
-        right: '5%',
-        width: 300,
-        height: 300,
-        borderRadius: '50%',
-        background: 'linear-gradient(45deg, rgba(156, 39, 176, 0.1), rgba(33, 150, 243, 0.1))',
-        animation: 'float 8s ease-in-out infinite',
-        zIndex: 0,
-      },
-      '&::after': {
-        content: '""',
-        position: 'absolute',
-        bottom: '15%',
-        left: '3%',
-        width: 200,
-        height: 200,
-        borderRadius: '50%',
-        background: 'linear-gradient(45deg, rgba(244, 67, 54, 0.08), rgba(156, 39, 176, 0.08))',
-        animation: 'float 10s ease-in-out infinite reverse',
-        zIndex: 0,
-      },
-      '@keyframes float': {
-        '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
-        '50%': { transform: 'translateY(-30px) rotate(180deg)' },
-      }
-    }}>
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        {/* Subtle Decorative Elements */}
-        <Box sx={{
-          position: 'absolute',
-          top: '15%',
-          left: '8%',
-          width: '120px',
-          height: '120px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.05))',
-          borderRadius: '50%',
-          filter: 'blur(40px)',
-          zIndex: 0,
-        }} />
-        <Box sx={{
-          position: 'absolute',
-          top: '60%',
-          right: '12%',
-          width: '80px',
-          height: '80px',
-          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(99, 102, 241, 0.04))',
-          borderRadius: '50%',
-          filter: 'blur(30px)',
-          zIndex: 0,
-        }} />
-        <Box sx={{
-          position: 'absolute',
-          bottom: '20%',
-          left: '15%',
-          width: '100px',
-          height: '100px',
-          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.07), rgba(59, 130, 246, 0.04))',
-          borderRadius: '50%',
-          filter: 'blur(35px)',
-          zIndex: 0,
-        }} />
-        
-        <Box sx={{ py: 4, position: 'relative', zIndex: 1 }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5', py: 4 }}>
+      <Container maxWidth="lg">
         {/* Event Header */}
-        <Fade in timeout={1000}>
-          <Paper elevation={0} sx={{ 
-            p: 5, 
-            mb: 4,
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(20px)',
-            borderRadius: 4,
-            border: '1px solid rgba(156, 39, 176, 0.2)',
-            boxShadow: '0 8px 32px rgba(156, 39, 176, 0.15)',
-            position: 'relative',
-            overflow: 'hidden',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '4px',
-              background: 'linear-gradient(90deg, #9c27b0, #2196f3, #f44336)',
-            }
-          }}>
+        <Paper sx={{ 
+          p: 4, 
+          mb: 3,
+          borderRadius: 3,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' }, gap: 4 }}>
             <Box sx={{ gridColumn: { xs: '1', md: '1 / 9' } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
@@ -386,20 +349,14 @@ const EventDetail: React.FC = () => {
                       alignItems: 'center', 
                       p: 2,
                       borderRadius: 2,
-                      background: 'linear-gradient(135deg, rgba(156, 39, 176, 0.05), rgba(33, 150, 243, 0.05))',
-                      border: '1px solid rgba(156, 39, 176, 0.1)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, rgba(156, 39, 176, 0.08), rgba(33, 150, 243, 0.08))',
-                        transform: 'translateX(4px)',
-                      }
+                      bgcolor: 'rgba(102, 126, 234, 0.08)',
+                      border: '1px solid rgba(102, 126, 234, 0.2)',
                     }}>
                       <Avatar sx={{ 
                         width: 40, 
                         height: 40, 
                         mr: 2, 
-                        background: 'linear-gradient(135deg, #9c27b0, #2196f3)',
-                        boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)',
+                        bgcolor: '#667eea',
                       }}>
                         <DateRange />
                       </Avatar>
@@ -420,20 +377,14 @@ const EventDetail: React.FC = () => {
                       alignItems: 'center', 
                       p: 2,
                       borderRadius: 2,
-                      background: 'linear-gradient(135deg, rgba(33, 150, 243, 0.05), rgba(244, 67, 54, 0.05))',
-                      border: '1px solid rgba(33, 150, 243, 0.1)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, rgba(33, 150, 243, 0.08), rgba(244, 67, 54, 0.08))',
-                        transform: 'translateX(4px)',
-                      }
+                      bgcolor: 'rgba(102, 126, 234, 0.08)',
+                      border: '1px solid rgba(102, 126, 234, 0.2)',
                     }}>
                       <Avatar sx={{ 
                         width: 40, 
                         height: 40, 
                         mr: 2, 
-                        background: 'linear-gradient(135deg, #2196f3, #f44336)',
-                        boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                        bgcolor: '#667eea',
                       }}>
                         <AccessTime />
                       </Avatar>
@@ -454,20 +405,14 @@ const EventDetail: React.FC = () => {
                       alignItems: 'center', 
                       p: 2,
                       borderRadius: 2,
-                      background: 'linear-gradient(135deg, rgba(244, 67, 54, 0.05), rgba(156, 39, 176, 0.05))',
-                      border: '1px solid rgba(244, 67, 54, 0.1)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, rgba(244, 67, 54, 0.08), rgba(156, 39, 176, 0.08))',
-                        transform: 'translateX(4px)',
-                      }
+                      bgcolor: 'rgba(102, 126, 234, 0.08)',
+                      border: '1px solid rgba(102, 126, 234, 0.2)',
                     }}>
                       <Avatar sx={{ 
                         width: 40, 
                         height: 40, 
                         mr: 2, 
-                        background: 'linear-gradient(135deg, #f44336, #9c27b0)',
-                        boxShadow: '0 4px 12px rgba(244, 67, 54, 0.3)',
+                        bgcolor: '#667eea',
                       }}>
                         <Place />
                       </Avatar>
@@ -488,20 +433,14 @@ const EventDetail: React.FC = () => {
                       alignItems: 'center', 
                       p: 2,
                       borderRadius: 2,
-                      background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.05), rgba(33, 150, 243, 0.05))',
-                      border: '1px solid rgba(76, 175, 80, 0.1)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.08), rgba(33, 150, 243, 0.08))',
-                        transform: 'translateX(4px)',
-                      }
+                      bgcolor: 'rgba(102, 126, 234, 0.08)',
+                      border: '1px solid rgba(102, 126, 234, 0.2)',
                     }}>
                       <Avatar sx={{ 
                         width: 40, 
                         height: 40, 
                         mr: 2, 
-                        background: 'linear-gradient(135deg, #4caf50, #2196f3)',
-                        boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
+                        bgcolor: '#667eea',
                       }}>
                         <Group />
                       </Avatar>
@@ -528,6 +467,36 @@ const EventDetail: React.FC = () => {
                 </Box>
                     </Box>
                   </Box>
+                  
+                  {event.registration_deadline && (
+                  <Box>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      p: 2,
+                      borderRadius: 2,
+                      bgcolor: 'rgba(102, 126, 234, 0.08)',
+                      border: '1px solid rgba(102, 126, 234, 0.2)',
+                    }}>
+                      <Avatar sx={{ 
+                        width: 40, 
+                        height: 40, 
+                        mr: 2, 
+                        bgcolor: '#667eea',
+                      }}>
+                        <Schedule />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body2" sx={{ color: '#666', fontWeight: 500 }}>
+                          Batas Pendaftaran
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: '#333', fontWeight: 600 }}>
+                          {formatEventDate(event.registration_deadline)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                  )}
                 </Box>
             </Box>
 
@@ -680,7 +649,12 @@ const EventDetail: React.FC = () => {
                           transition: 'all 0.3s ease',
                         }}
                   >
-                    {isUserRegistered ? 'Sudah Terdaftar' : 'Daftar Event'}
+                    {isUserRegistered 
+                      ? 'Sudah Terdaftar' 
+                      : isDeadlinePassed 
+                        ? 'Sudah Selesai' 
+                        : 'Daftar Event'
+                    }
                   </Button>
 
                       {isUserRegistered && (
@@ -736,39 +710,16 @@ const EventDetail: React.FC = () => {
             </Box>
           </Box>
         </Paper>
-        </Fade>
 
         {/* Event Details */}
-        <Slide direction="up" in timeout={1400}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' }, gap: 4 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' }, gap: 3 }}>
           <Box sx={{ gridColumn: { xs: '1', md: '1 / 9' } }}>
-              <Paper elevation={0} sx={{ 
-                p: 4,
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: 4,
-                border: '1px solid rgba(156, 39, 176, 0.2)',
-                boxShadow: '0 8px 32px rgba(156, 39, 176, 0.15)',
-                position: 'relative',
-                overflow: 'hidden',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '4px',
-                  background: 'linear-gradient(90deg, #9c27b0, #2196f3, #f44336)',
-                }
+              <Paper sx={{ 
+                p: 3,
+                borderRadius: 3,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
               }}>
-                <Typography variant="h4" gutterBottom sx={{ 
-                  fontWeight: 800,
-                  background: 'linear-gradient(45deg, #9c27b0, #2196f3)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  mb: 3
-                }}>
+                <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, color: '#667eea', mb: 3 }}>
                 Detail Event
               </Typography>
                 
@@ -984,15 +935,13 @@ const EventDetail: React.FC = () => {
               </Zoom>
             </Box>
           </Box>
-        </Slide>
-      </Box>
 
       {/* Registration Confirmation Dialog */}
       <Dialog open={registrationDialog} onClose={() => setRegistrationDialog(false)}>
         <DialogTitle>Konfirmasi Pendaftaran</DialogTitle>
         <DialogContent>
           <Typography>
-            Apakah Anda yakin ingin mendaftar untuk event "{event.title}"?
+            Apakah Anda yakin ingin mendaftar untuk event "{event?.title}"?
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Setelah mendaftar, Anda akan menerima email konfirmasi dengan token kehadiran.
@@ -1011,8 +960,7 @@ const EventDetail: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-    </Container>
+      </Container>
     </Box>
   );
 };

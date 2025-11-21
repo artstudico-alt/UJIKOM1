@@ -8,6 +8,7 @@ import {
   LoginCredentials,
   RegisterData,
   PasswordResetData,
+  PasswordChangeData,
   EventFormData,
   SearchParams,
   DashboardStats,
@@ -119,9 +120,15 @@ export const authService = {
     return response.data;
   },
 
-  // Reset Password
+  // Reset Password (Forgot Password)
   resetPassword: async (data: PasswordResetData): Promise<ApiResponse<{ message: string }>> => {
     const response = await api.post('/reset-password', data);
+    return response.data;
+  },
+
+  // Change Password (User logged in)
+  changePassword: async (data: PasswordChangeData): Promise<ApiResponse<{ message: string }>> => {
+    const response = await api.post('/change-password', data);
     return response.data;
   },
 
@@ -164,6 +171,18 @@ export const authService = {
   // Resend OTP
   resendOTP: async (data: { email: string }): Promise<ApiResponse<{ message: string }>> => {
     const response = await api.post('/resend-otp', data);
+    return response.data;
+  },
+
+  // Upload profile picture
+  uploadProfilePicture: async (file: File): Promise<ApiResponse<{ profile_picture: string; profile_picture_url: string; user: User }>> => {
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+    const response = await api.post('/profile/upload-picture', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };

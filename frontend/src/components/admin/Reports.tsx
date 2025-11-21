@@ -100,6 +100,7 @@ const AdminReports: React.FC = () => {
           organizerName: event.organizer_name || '',
           organizerEmail: event.organizer_email || '',
           organizerContact: event.organizer_contact || '',
+          organizerType: event.organizer_type || 'admin',  // ✅ ADD organizer_type
           image: event.image_url || '',
           createdAt: event.created_at || '',
           submittedAt: event.submitted_at || '',
@@ -117,12 +118,12 @@ const AdminReports: React.FC = () => {
       const combined = [...apiEvents, ...localEvents];
       setAllEvents(combined);
 
-      // Separate organizer and admin events
+      // Separate organizer and admin events based on organizer_type
       const organizer = combined.filter(event => 
-        event.organizerName && event.organizerName !== 'Admin Utama'
+        (event as any).organizerType === 'organizer'
       );
       const admin = combined.filter(event => 
-        !event.organizerName || event.organizerName === 'Admin Utama'
+        (event as any).organizerType === 'admin' || !(event as any).organizerType
       );
 
       setOrganizerEvents(organizer);
@@ -132,6 +133,12 @@ const AdminReports: React.FC = () => {
         total: combined.length,
         organizer: organizer.length,
         admin: admin.length
+      });
+      
+      // Debug: Log each event's organizer_type
+      console.log('🔍 Event breakdown by organizer_type:');
+      combined.forEach((event, index) => {
+        console.log(`  ${index + 1}. "${event.title}" - organizerType: "${(event as any).organizerType}"`);
       });
 
     } catch (error) {

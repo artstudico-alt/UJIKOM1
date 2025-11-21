@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -15,6 +15,8 @@ import {
   Tabs,
   Tab,
   Link,
+  IconButton,
+  CircularProgress,
 } from '@mui/material';
 import {
   Person,
@@ -24,18 +26,22 @@ import {
   VerifiedUser,
   Business,
   Description,
-  Notifications,
   ContentCopy,
+  CameraAlt,
+  Edit,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { eventService } from '../services/api';
+import { eventService, authService, userService } from '../services/api';
 
 const Profile: React.FC = () => {
   const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [tabValue, setTabValue] = useState(0);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [stats, setStats] = useState({
     totalEvents: 0,
     activeEvents: 0,
@@ -48,6 +54,15 @@ const Profile: React.FC = () => {
     education: user?.education || '',
     address: user?.address || '',
   });
+
+  // Load profile picture URL
+  useEffect(() => {
+    if (user?.profile_picture) {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+      const baseUrl = apiUrl.replace('/api', '');
+      setProfilePictureUrl(`${baseUrl}/storage/${user.profile_picture}`);
+    }
+  }, [user]);
 
   // Fetch user stats
   useEffect(() => {
@@ -91,25 +106,68 @@ const Profile: React.FC = () => {
     }));
   };
 
+  const handleProfilePictureClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfilePictureChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('File harus berupa gambar');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Ukuran gambar maksimal 2MB');
+      return;
+    }
+
+    setUploadingPicture(true);
+    setError('');
+
+    try {
+      const response = await authService.uploadProfilePicture(file);
+      if (response.status === 'success' && response.data) {
+        // Update profile picture URL
+        setProfilePictureUrl(response.data.profile_picture_url);
+        // Update user context
+        if (user) {
+          updateUser({ ...user, profile_picture: response.data.profile_picture });
+        }
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Gagal upload foto profile');
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
   const handleSave = async () => {
     setLoading(true);
     setError('');
     try {
-      if (user) {
-        const updatedUser = { 
-          ...user, 
-          name: formData.name,
-          phone: formData.phone,
-          education: formData.education,
-          address: formData.address,
-        };
-        updateUser(updatedUser);
+      // Send update to API
+      const response = await userService.updateProfile({
+        name: formData.name,
+        phone: formData.phone,
+        education: formData.education,
+        address: formData.address,
+      });
+
+      if (response.status === 'success' && response.data) {
+        // Update context with data from API
+        updateUser(response.data);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
       }
-      
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.message || 'Gagal memperbarui profil');
+      setError(err.response?.data?.message || err.message || 'Gagal memperbarui profil');
     } finally {
       setLoading(false);
     }
@@ -176,23 +234,8 @@ const Profile: React.FC = () => {
           background: 'rgba(255, 255, 255, 0.07)',
         }} />
         <Container maxWidth="lg">
-          <Box sx={{ pt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
-              Profile
-            </Typography>
+          <Box sx={{ pt: 3, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ position: 'relative' }}>
-                <Notifications sx={{ color: 'white', cursor: 'pointer' }} />
-                <Box sx={{
-                  position: 'absolute',
-                  top: -4,
-                  right: -4,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  bgcolor: '#ff4757',
-                }} />
-              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}>
                 <Avatar src="" sx={{ width: 32, height: 32 }} />
                 <Typography sx={{ color: 'white', fontSize: '14px' }}>
@@ -219,9 +262,16 @@ const Profile: React.FC = () => {
                   }}
                 >
                   <Box sx={{ textAlign: 'center' }}>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleProfilePictureChange}
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                    />
                     <Box sx={{ position: 'relative', display: 'inline-block' }}>
                       <Avatar
-                        src=""
+                        src={profilePictureUrl || ''}
                         sx={{
                           width: 100,
                           height: 100,
@@ -230,25 +280,48 @@ const Profile: React.FC = () => {
                           color: '#1976d2',
                           margin: '0 auto',
                           mb: 1,
+                          cursor: 'pointer',
+                          '&:hover': {
+                            opacity: 0.8,
+                          },
+                        }}
+                        onClick={handleProfilePictureClick}
+                      >
+                        {!profilePictureUrl && (user?.name?.charAt(0) || 'U')}
+                      </Avatar>
+                      {uploadingPicture && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'rgba(0,0,0,0.5)',
+                          borderRadius: '50%',
+                        }}>
+                          <CircularProgress size={30} sx={{ color: 'white' }} />
+                        </Box>
+                      )}
+                      <IconButton
+                        onClick={handleProfilePictureClick}
+                        sx={{
+                          position: 'absolute',
+                          bottom: 0,
+                          right: -4,
+                          width: 32,
+                          height: 32,
+                          bgcolor: '#4361ee',
+                          border: '3px solid white',
+                          '&:hover': {
+                            bgcolor: '#3651d4',
+                          },
                         }}
                       >
-                        {user?.name?.charAt(0) || 'U'}
-                      </Avatar>
-                      <Box sx={{
-                        position: 'absolute',
-                        bottom: 8,
-                        right: -4,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        bgcolor: '#4361ee',
-                        border: '3px solid white',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                        <VerifiedUser sx={{ fontSize: 14, color: 'white' }} />
-                      </Box>
+                        <CameraAlt sx={{ fontSize: 16, color: 'white' }} />
+                      </IconButton>
                     </Box>
                     <Typography variant="h6" fontWeight="600" sx={{ mt: 2, mb: 3 }}>
                       {user?.name || 'User Name'}

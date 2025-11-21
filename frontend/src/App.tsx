@@ -12,6 +12,9 @@ import About from './pages/About';
 import Contact from './pages/Contact';
 import Profile from './pages/Profile';
 import OrganizerProfile from './pages/OrganizerProfile';
+import ResetPassword from './pages/ResetPassword';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPasswordWithToken from './pages/ResetPasswordWithToken';
 import Events from './pages/Events';
 import EventDetail from './components/events/EventDetail';
 import EventForm from './components/events/EventForm';
@@ -43,12 +46,17 @@ import Notifications from './pages/Notifications';
 import OrganizerDashboard from './pages/OrganizerDashboard';
 import OrganizerEventManagement from './pages/OrganizerEventManagement';
 import OrganizerParticipants from './pages/OrganizerParticipants';
+import OrganizerPaymentManagement from './pages/OrganizerPaymentManagement';
 import OrganizerCertificateManagement from './pages/OrganizerCertificateManagement';
 import OrganizerCertificateBuilder from './pages/OrganizerCertificateBuilder';
 import OrganizerReports from './pages/OrganizerReports';
 import OrganizerSettings from './pages/OrganizerSettings';
 import OrganizerLayout from './layouts/OrganizerLayout';
 import PricingPage from './pages/Pricing';
+import PaymentCheckout from './pages/PaymentCheckout';
+import PaymentUpgrade from './pages/PaymentUpgrade';
+import PaymentStatus from './pages/PaymentStatus';
+import AdminPaymentDashboard from './pages/AdminPaymentDashboard';
 
 // Create theme
 const theme = createTheme({
@@ -316,9 +324,16 @@ const AppRoutes: React.FC = () => {
         path="/forgot-password"
         element={
           <PublicRoute>
-            <AuthLayout>
-              <ForgotPasswordForm />
-            </AuthLayout>
+            <ForgotPassword />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/reset-password/:token"
+        element={
+          <PublicRoute>
+            <ResetPasswordWithToken />
           </PublicRoute>
         }
       />
@@ -381,6 +396,40 @@ const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Payment Routes */}
+      <Route
+        path="/payment/checkout/:eventId"
+        element={
+          <ProtectedRoute>
+            <PublicLayout>
+              <PaymentCheckout />
+            </PublicLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payment/upgrade"
+        element={
+          <ProtectedRoute>
+            <PublicLayout>
+              <PaymentUpgrade />
+            </PublicLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payment/status/:invoiceNumber"
+        element={
+          <ProtectedRoute>
+            <PublicLayout>
+              <PaymentStatus />
+            </PublicLayout>
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/attendance"
         element={
@@ -409,6 +458,17 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute>
             <PublicLayout>
               <Profile />
+            </PublicLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reset-password"
+        element={
+          <ProtectedRoute>
+            <PublicLayout>
+              <ResetPassword />
             </PublicLayout>
           </ProtectedRoute>
         }
@@ -474,6 +534,17 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
+        path="/admin/reset-password"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <ResetPassword />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      <Route
         path="/admin/events"
         element={
           <AdminRoute>
@@ -491,6 +562,18 @@ const AppRoutes: React.FC = () => {
           <AdminRoute>
             <AdminLayout>
               <EventForm isCreate={true} isOrganizer={false} />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      {/* Admin Edit Event */}
+      <Route
+        path="/admin/events/edit/:eventId"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <EventForm isCreate={false} isOrganizer={false} />
             </AdminLayout>
           </AdminRoute>
         }
@@ -536,6 +619,17 @@ const AppRoutes: React.FC = () => {
           <AdminRoute>
             <AdminLayout>
               <Reports />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/admin/payments"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <AdminPaymentDashboard />
             </AdminLayout>
           </AdminRoute>
         }
@@ -669,11 +763,33 @@ const AppRoutes: React.FC = () => {
       />
 
       <Route
+        path="/organizer/reset-password"
+        element={
+          <OrganizerRoute>
+            <OrganizerLayout>
+              <ResetPassword />
+            </OrganizerLayout>
+          </OrganizerRoute>
+        }
+      />
+
+      <Route
         path="/organizer/participants"
         element={
           <OrganizerRoute>
             <OrganizerLayout>
               <OrganizerParticipants />
+            </OrganizerLayout>
+          </OrganizerRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/payments"
+        element={
+          <OrganizerRoute>
+            <OrganizerLayout>
+              <OrganizerPaymentManagement />
             </OrganizerLayout>
           </OrganizerRoute>
         }

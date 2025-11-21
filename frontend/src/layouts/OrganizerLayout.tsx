@@ -30,6 +30,8 @@ import {
   Logout,
   Assessment,
   Create,
+  Lock,
+  Payment,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -75,6 +77,7 @@ const OrganizerLayout: React.FC<OrganizerLayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <Dashboard />, path: '/organizer/dashboard', description: 'Overview & Analytics' },
     { text: 'Event Management', icon: <Event />, path: '/organizer/events', description: 'Create & Manage Events' },
     { text: 'Participants', icon: <People />, path: '/organizer/participants', description: 'View & Manage Participants' },
+    { text: 'Payments', icon: <Payment />, path: '/organizer/payments', description: 'Payment Management' },
     { text: 'Certificate Management', icon: <School />, path: '/organizer/certificate-management', description: 'Manage Event Certificates' },
     { text: 'Certificate Builder', icon: <Create />, path: '/organizer/certificate-builder', description: 'Create & Design Certificates' },
     { text: 'Reports', icon: <Assessment />, path: '/organizer/reports', description: 'Analytics & Reports' },

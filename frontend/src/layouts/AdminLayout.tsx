@@ -33,6 +33,8 @@ import {
   Assessment,
   AdminPanelSettings,
   Create,
+  Lock,
+  Payment,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,6 +54,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const [open, setOpen] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  // Ensure menu is closed on mount to prevent overlay issues
+  React.useEffect(() => {
+    setAnchorEl(null);
+  }, []);
 
   const handleDrawerToggle = () => {
     setOpen(!open);
@@ -79,6 +86,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { text: 'User Management', icon: <People />, path: '/admin/users', description: 'Manage Users & Permissions' },
     { text: 'Event Management', icon: <Event />, path: '/admin/events', description: 'Create & Manage Events' },
     { text: 'Participants', icon: <People />, path: '/admin/participants', description: 'View & Manage Participants' },
+    { text: 'Payments', icon: <Payment />, path: '/admin/payments', description: 'Payment Management' },
     { text: 'Certificate Management', icon: <School />, path: '/admin/certificate-management', description: 'Manage Event Certificates' },
     { text: 'Certificate Builder', icon: <Create />, path: '/admin/certificate-builder', description: 'Create & Design Certificates' },
     { text: 'Certificates', icon: <School />, path: '/admin/certificates', description: 'View All Certificates' },
@@ -139,6 +147,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       {/* Desktop Sidebar */}
       <Drawer
         variant="permanent"
+        ModalProps={{
+          keepMounted: false,
+          disablePortal: true,
+        }}
         sx={{
           width: collapsed ? collapsedWidth : drawerWidth,
           flexShrink: 0,
@@ -415,6 +427,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleProfileMenuClose}
+        disableScrollLock={true}
         sx={{
           '& .MuiPaper-root': {
             borderRadius: 2,

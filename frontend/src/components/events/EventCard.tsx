@@ -19,7 +19,8 @@ import {
   PersonAdd,
   Login,
   TaskAlt,
-  Cancel
+  Cancel,
+  MonetizationOn
 } from '@mui/icons-material';
 
 interface Event {
@@ -35,6 +36,7 @@ interface Event {
   organizer?: string; // Nama penyelenggara - TAMPIL DI PUBLIK
   registration_deadline?: string; // Deadline registrasi
   date?: string; // Tanggal event
+  price?: number; // Harga event (0 = gratis)
 }
 
 interface EventCardProps {
@@ -47,6 +49,16 @@ interface EventCardProps {
 const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister, isAuthenticated = false }) => {
   const [imageError, setImageError] = useState(false);
 
+  // Debug authentication status
+  console.log('🔐 EventCard Auth Debug:', {
+    eventId: event.id,
+    eventTitle: event.title,
+    isAuthenticated: isAuthenticated,
+    isAuthenticatedType: typeof isAuthenticated,
+    isUserRegistered: event.is_user_registered,
+    eventStatus: event.status
+  });
+
   const handleImageError = () => {
     console.log('🖼️ EventCard: Image error for event:', {
       id: event.id,
@@ -57,88 +69,118 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
     setImageError(true);
   };
   
-  // Debug image data
+  // Debug event data - CHECK DEADLINE
   React.useEffect(() => {
-    console.log('🖼️ EventCard: Image data for event:', {
-      id: event.id,
-      title: event.title,
-      image: event.image,
-      hasImage: !!event.image,
-      imageError: imageError
-    });
-  }, [event.id, event.image, imageError]);
+    console.log('📋 EventCard Data Debug for:', event.title);
+    console.log('  📅 registration_deadline:', event.registration_deadline);
+    console.log('  📅 date:', event.date);
+    console.log('  📅 formattedDate:', event.formattedDate);
+    console.log('  📅 status:', event.status);
+    console.log('  🕐 start_time:', event.start_time);
+    console.log('  🕐 end_time:', event.end_time);
+  }, [event]);
 
-  // Check if registration is still open
+  // Check if registration is still open - SAMA SEPERTI EventDetail.tsx
   const isRegistrationOpen = () => {
-    // If event is completed or cancelled, registration is closed
-    if (event.status === 'completed' || event.status === 'cancelled' || event.status === 'rejected') {
-      return false;
-    }
-    
     const now = new Date();
     
-    // Check if event has started (date + start time)
-    if (event.date || event.formattedDate) {
-      const eventDateStr = event.date || event.formattedDate;
-      const eventStartTime = event.start_time || '00:00';
-      
-      // Combine date and time
-      const [hours, minutes] = eventStartTime.split(':').map(Number);
-      const eventStartDateTime = new Date(eventDateStr);
-      eventStartDateTime.setHours(hours, minutes, 0, 0);
-      
-      // Registration closes when event starts
-      if (now >= eventStartDateTime) {
-        return false;
-      }
-    }
+    console.log('🔍 ==========================================');
+    console.log('📋 EventCard Check Registration for:', event.title);
+    console.log('  📅 registration_deadline:', event.registration_deadline);
+    console.log('  📅 Has registration_deadline?', !!event.registration_deadline);
+    console.log('  📅 Type:', typeof event.registration_deadline);
+    console.log('  📅 Event status:', event.status);
+    console.log('  🕐 Current time:', now.toISOString());
     
-    // If registration deadline is set, check if it has passed
+    // Check if registration deadline has passed - LOGIC DARI EventDetail.tsx
+    let isDeadlinePassed = false;
     if (event.registration_deadline) {
-      const deadline = new Date(event.registration_deadline);
-      if (now > deadline) {
-        return false;
-      }
+      const deadlineDate = new Date(event.registration_deadline);
+      // Set deadline to end of day (23:59:59)
+      deadlineDate.setHours(23, 59, 59, 999);
+      isDeadlinePassed = now > deadlineDate;
+      
+      console.log('  ⏰ Deadline parsed:', deadlineDate.toISOString());
+      console.log('  ⏰ Is valid date?', !isNaN(deadlineDate.getTime()));
+      console.log('  ⏳ Deadline passed?', isDeadlinePassed);
+    } else {
+      console.log('  ⚠️ NO REGISTRATION DEADLINE FOUND!');
     }
     
-    // For published events, registration is open
-    return event.status === 'published';
+    // Registration open jika status published DAN deadline belum lewat
+    const isOpen = event.status === 'published' && !isDeadlinePassed;
+    console.log('  ✅ Registration open?', isOpen);
+    console.log('🔍 ==========================================');
+    
+    return isOpen;
   };
 
-  // Get registration status message
+  // Get registration status message - SAMA SEPERTI EventDetail.tsx
   const getRegistrationMessage = () => {
-    const now = new Date();
-    
-    if (event.date || event.formattedDate) {
-      const eventDateStr = event.date || event.formattedDate;
-      const eventStartTime = event.start_time || '00:00';
-      
-      // Combine date and time
-      const [hours, minutes] = eventStartTime.split(':').map(Number);
-      const eventStartDateTime = new Date(eventDateStr);
-      eventStartDateTime.setHours(hours, minutes, 0, 0);
-      
-      if (now >= eventStartDateTime) {
-        return 'Pendaftaran ditutup - Event sudah dimulai';
-      }
+    if (event.status === 'completed' || event.status === 'cancelled') {
+      return 'Event sudah selesai';
     }
     
+    const now = new Date();
+    let isDeadlinePassed = false;
+    
     if (event.registration_deadline) {
-      const deadline = new Date(event.registration_deadline);
-      if (now > deadline) {
-        return 'Pendaftaran ditutup';
-      }
+      const deadlineDate = new Date(event.registration_deadline);
+      deadlineDate.setHours(23, 59, 59, 999);
+      isDeadlinePassed = now > deadlineDate;
+    }
+    
+    if (isDeadlinePassed) {
+      return 'Batas waktu pendaftaran sudah lewat';
     }
     
     return null;
   };
 
   const getStatusChip = () => {
+    const now = new Date();
+    
+    // Check if registration deadline has passed - LOGIC DARI EventDetail.tsx
+    let isDeadlinePassed = false;
+    if (event.registration_deadline) {
+      const deadlineDate = new Date(event.registration_deadline);
+      deadlineDate.setHours(23, 59, 59, 999);
+      isDeadlinePassed = now > deadlineDate;
+    }
+    
+    // Jika deadline pendaftaran sudah lewat, tampilkan chip merah
+    if (isDeadlinePassed && event.status === 'published') {
+      return <Chip 
+        label="Pendaftaran Ditutup" 
+        size="small" 
+        color="error"
+        icon={<Cancel />}
+        sx={{
+          fontWeight: 600,
+          '& .MuiChip-icon': {
+            color: 'white'
+          }
+        }}
+      />;
+    }
+    
     switch (event.status) {
       case 'ongoing':
         return <Chip label="Sedang Berlangsung" color="success" size="small" icon={<HourglassEmpty />} />;
       case 'completed':
-        return <Chip label="Selesai" color="default" size="small" icon={<CheckCircle />} />;
+        return <Chip 
+          label="Dipublikasikan" 
+          size="small" 
+          icon={<CheckCircle />}
+          sx={{
+            backgroundColor: '#f44336',
+            color: 'white',
+            fontWeight: 600,
+            '& .MuiChip-icon': {
+              color: 'white'
+            }
+          }}
+        />;
       case 'draft':
         return <Chip label="Draft" color="default" size="small" icon={<CalendarToday />} />;
       case 'pending_approval':
@@ -228,15 +270,45 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
             px: 1.5,
             py: 0.5,
             borderRadius: 1,
-            border: '1px solid #e9ecef'
+            border: '1px solid #e9ecef',
+            mb: 1
           }}>
             <Typography variant="caption" fontWeight={600} sx={{ color: '#6c757d' }}>
               Diselenggarakan oleh: <span style={{ color: '#495057', fontWeight: 700 }}>{event.organizer}</span>
             </Typography>
           </Box>
         )}
+        
+        {/* Price Badge */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {event.price && event.price > 0 ? (
+            <Chip
+              icon={<MonetizationOn />}
+              label={`Rp ${event.price.toLocaleString('id-ID')}`}
+              color="warning"
+              size="small"
+              sx={{
+                fontWeight: 600,
+                '& .MuiChip-icon': {
+                  color: '#ed6c02'
+                }
+              }}
+            />
+          ) : (
+            <Chip
+              label="Gratis"
+              color="success"
+              size="small"
+              sx={{
+                fontWeight: 600,
+                bgcolor: '#4caf50',
+                color: 'white'
+              }}
+            />
+          )}
+        </Box>
       </CardContent>
-      <CardActions sx={{ p: 2, pt: 0, display: 'flex', gap: 1 }}>
+      <CardActions sx={{ p: 2, pt: 0, display: 'flex', gap: 1, position: 'relative', zIndex: 20 }}>
         <Tooltip title="Lihat detail event" arrow placement="top">
           <Button
             variant="outlined"
@@ -280,13 +352,53 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
             <Visibility sx={{ fontSize: '1.2rem' }} />
           </Button>
         </Tooltip>
-        {onRegister && !event.is_user_registered && (
+        
+        {/* Registration Button Logic - Simplified */}
+        {event.is_user_registered ? (
+          <Tooltip 
+            title={event.status === 'completed' ? 'Event sudah selesai' : 'Anda sudah terdaftar di event ini'} 
+            arrow 
+            placement="top"
+          >
+            <span style={{ flex: 1, pointerEvents: 'none' }}>
+              <Button
+                variant="contained"
+                disabled
+                sx={{ 
+                  flex: 1,
+                  width: '100%',
+                  background: '#616161',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  py: 1.2,
+                  borderRadius: 2,
+                  cursor: 'not-allowed',
+                  pointerEvents: 'none',
+                  '&:hover': {
+                    background: '#616161',
+                    transform: 'none',
+                    boxShadow: 'none',
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CheckCircle sx={{ fontSize: '1.1rem' }} />
+                  <Typography sx={{ fontWeight: 600 }}>Sudah Terdaftar</Typography>
+                </Box>
+              </Button>
+            </span>
+          </Tooltip>
+        ) : (
+          // User belum terdaftar
           isRegistrationOpen() ? (
+            // Registration masih buka
             isAuthenticated ? (
+              // Sudah login → Bisa daftar
               <Button
                 variant="contained"
                 color="primary"
-                onClick={() => onRegister(event.id)}
+                onClick={() => onRegister?.(event.id)}
                 sx={{ 
                   flex: 1,
                   background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 50%, #2196f3 100%)',
@@ -297,97 +409,99 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
                   borderRadius: 2,
                   border: '2px solid rgba(156, 39, 176, 0.3)',
                   boxShadow: '0 4px 15px rgba(156, 39, 176, 0.3)',
-                position: 'relative',
-                overflow: 'hidden',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: '-100%',
-                  width: '100%',
-                  height: '100%',
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-                  transition: 'left 0.5s ease',
-                },
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #7b1fa2 0%, #512da8 50%, #1976d2 100%)',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 25px rgba(156, 39, 176, 0.4)',
+                  position: 'relative',
+                  overflow: 'hidden',
                   '&::before': {
-                    left: '100%',
-                  }
-                },
-                '&:active': {
-                  transform: 'translateY(0px)',
-                }
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PersonAdd sx={{ fontSize: '1.1rem' }} />
-                <Typography sx={{ fontWeight: 600 }}>Daftar Sekarang</Typography>
-              </Box>
-            </Button>
-          ) : (
-            <Tooltip 
-              title="Klik untuk login dan mulai mendaftar event gratis!"
-              arrow
-              placement="top"
-            >
-              <span style={{ flex: 1 }}>
-                <Button
-                  variant="contained"
-                  onClick={() => window.location.href = '/login'}
-                  sx={{ 
-                    flex: 1,
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: '-100%',
                     width: '100%',
-                    background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 50%, #e65100 100%)',
-                    color: 'white',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    py: 1.2,
-                    borderRadius: 2,
-                    border: '2px solid rgba(255, 152, 0, 0.3)',
-                    boxShadow: '0 4px 15px rgba(255, 152, 0, 0.3)',
-                    position: 'relative',
-                    overflow: 'hidden',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                    transition: 'left 0.5s ease',
+                  },
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #7b1fa2 0%, #512da8 50%, #1976d2 100%)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 25px rgba(156, 39, 176, 0.4)',
                     '&::before': {
-                      content: '""',
-                      position: 'absolute',
-                      top: 0,
-                      left: '-100%',
-                      width: '100%',
-                      height: '100%',
-                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-                      transition: 'left 0.5s ease',
-                    },
-                    '&:hover': {
-                      background: 'linear-gradient(135deg, #f57c00 0%, #e65100 50%, #d84315 100%)',
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 8px 25px rgba(255, 152, 0, 0.4)',
-                      '&::before': {
-                        left: '100%',
-                      }
-                    },
-                    '&:active': {
-                      transform: 'translateY(0px)',
+                      left: '100%',
                     }
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Login sx={{ fontSize: '1.1rem' }} />
-                    <Typography sx={{ fontWeight: 600 }}>Login untuk Daftar</Typography>
-                  </Box>
-                </Button>
-              </span>
-            </Tooltip>
-          )
+                  },
+                  '&:active': {
+                    transform: 'translateY(0px)',
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PersonAdd sx={{ fontSize: '1.1rem' }} />
+                  <Typography sx={{ fontWeight: 600 }}>Daftar Sekarang</Typography>
+                </Box>
+              </Button>
+            ) : (
+              // Belum login → Login dulu
+              <Tooltip 
+                title="Klik untuk login dan mulai mendaftar event!"
+                arrow
+                placement="top"
+              >
+                <span style={{ flex: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => window.location.href = '/login'}
+                    sx={{ 
+                      flex: 1,
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 50%, #e65100 100%)',
+                      color: 'white',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      py: 1.2,
+                      borderRadius: 2,
+                      border: '2px solid rgba(255, 152, 0, 0.3)',
+                      boxShadow: '0 4px 15px rgba(255, 152, 0, 0.3)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: '-100%',
+                        width: '100%',
+                        height: '100%',
+                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                        transition: 'left 0.5s ease',
+                      },
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #f57c00 0%, #e65100 50%, #d84315 100%)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 25px rgba(255, 152, 0, 0.4)',
+                        '&::before': {
+                          left: '100%',
+                        }
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Login sx={{ fontSize: '1.1rem' }} />
+                      <Typography sx={{ fontWeight: 600 }}>Login untuk Daftar</Typography>
+                    </Box>
+                  </Button>
+                </span>
+              </Tooltip>
+            )
           ) : (
+            // Registration ditutup → Button disabled
             <Tooltip 
-              title={getRegistrationMessage() || "Pendaftaran belum dibuka"}
+              title={getRegistrationMessage() || "Pendaftaran sudah ditutup"}
               arrow
               placement="top"
             >
-              <span style={{ flex: 1 }}>
+              <span style={{ flex: 1, pointerEvents: 'none' }}>
                 <Button
                   variant="contained"
                   disabled
@@ -401,47 +515,22 @@ const EventCard: React.FC<EventCardProps> = ({ event, onViewDetails, onRegister,
                     py: 1.2,
                     borderRadius: 2,
                     cursor: 'not-allowed',
+                    pointerEvents: 'none',
+                    '&:hover': {
+                      background: '#9e9e9e',
+                      transform: 'none',
+                      boxShadow: 'none',
+                    }
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <HourglassEmpty sx={{ fontSize: '1.1rem' }} />
-                    <Typography sx={{ fontWeight: 600 }}>Belum Dibuka</Typography>
+                    <Cancel sx={{ fontSize: '1.1rem' }} />
+                    <Typography sx={{ fontWeight: 600 }}>Sudah Selesai</Typography>
                   </Box>
                 </Button>
               </span>
             </Tooltip>
           )
-        )}
-        {event.is_user_registered && (
-          <Tooltip title="Anda sudah terdaftar di event ini" arrow placement="top">
-            <span style={{ flex: 1 }}>
-              <Button
-                variant="contained"
-                disabled
-                sx={{ 
-                  flex: 1,
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #4caf50 0%, #388e3c 50%, #2e7d32 100%)',
-                  color: 'white',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  py: 1.2,
-                  borderRadius: 2,
-                  border: '2px solid rgba(76, 175, 80, 0.3)',
-                  boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)',
-                  '&.Mui-disabled': {
-                    background: 'linear-gradient(135deg, #4caf50 0%, #388e3c 50%, #2e7d32 100%)',
-                    color: 'white',
-                  }
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <TaskAlt sx={{ fontSize: '1.1rem' }} />
-                  <Typography sx={{ fontWeight: 600 }}>Sudah Terdaftar</Typography>
-                </Box>
-              </Button>
-            </span>
-          </Tooltip>
         )}
       </CardActions>
     </Box>

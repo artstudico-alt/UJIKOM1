@@ -42,6 +42,10 @@ const MyEvents: React.FC = () => {
     queryFn: () => eventService.getMyEvents(),
   });
 
+  console.log('📋 My Events - Full Response:', eventsResponse);
+  console.log('📋 My Events - Events Data:', eventsResponse?.data);
+  console.log('📋 My Events - Events Count:', eventsResponse?.data?.length || 0);
+
   const events = eventsResponse?.data || [];
 
   const getEventStatus = (event: EventType) => {
@@ -172,6 +176,9 @@ const MyEvents: React.FC = () => {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
             {events.map((event: EventType) => {
               const eventStatus = getEventStatus(event);
+              
+              // Debug image URL
+              console.log('🖼️ Event Image URL:', event.id, event.image);
 
               return (
                 <Box key={event.id}>
@@ -210,9 +217,17 @@ const MyEvents: React.FC = () => {
                     <CardMedia
                       component="img"
                       height="200"
-                      image={event.image ? `${event.image}?v=${Date.now()}` : '/images/default-event.svg'}
+                      image={event.image || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzY2N2VlYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'}
                       alt={event.title}
-                      sx={{ objectFit: 'cover' }}
+                      sx={{ 
+                        objectFit: 'cover',
+                        bgcolor: '#f1f5f9'
+                      }}
+                      onError={(e: any) => {
+                        console.error('❌ Image failed to load:', event.image);
+                        // Use embedded SVG as fallback (no internet needed)
+                        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2VmNDQ0NCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnPg==';
+                      }}
                     />
 
                     <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>

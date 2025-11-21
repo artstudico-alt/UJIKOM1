@@ -262,15 +262,21 @@ const AdminDashboard: React.FC = () => {
       }
       setRecentEvents(recentEventsData);
       
-      // Load pending events from API (organizer events now stored in database)
+      // Load pending events from API (limit 5 for dashboard)
       let pendingEventsData: AdminEvent[] = [];
       try {
-        console.log('📊 Admin Dashboard: Attempting to load pending events...');
-        pendingEventsData = await adminApiService.getPendingEvents();
-        console.log('✅ Admin Dashboard: Pending events loaded from API:', pendingEventsData.length);
-      } catch (pendingError) {
-        console.error('❌ Admin Dashboard: Pending events API failed:', pendingError);
-        // No localStorage fallback - 100% database now
+        console.log('📊 Admin Dashboard: Attempting to load pending events (limit 5)...');
+        pendingEventsData = await adminApiService.getPendingEvents(5);
+        console.log('✅ Admin Dashboard: Pending events loaded:', {
+          count: pendingEventsData.length,
+          events: pendingEventsData.map(e => ({ id: e.id, title: e.title, status: e.status }))
+        });
+      } catch (pendingError: any) {
+        console.error('❌ Admin Dashboard: Pending events API failed:', {
+          error: pendingError.message,
+          response: pendingError.response?.data
+        });
+        // Empty array if API fails
         pendingEventsData = [];
       }
       setPendingEvents(pendingEventsData);
@@ -652,10 +658,13 @@ const AdminDashboard: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
               <Box>
                 <Typography variant="h5" fontWeight="bold" sx={{ color: pendingEvents.length > 0 ? '#92400e' : '#475569' }}>
-                  📋 Event Menunggu Persetujuan ({pendingEvents.length})
+                  📋 Event Menunggu Persetujuan ({dashboardStats.pending_approvals || 0})
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280', fontStyle: 'italic' }}>
-                  Notifikasi persetujuan event ditampilkan di sini, bukan di notification bell
+                  {pendingEvents.length > 0 
+                    ? `Menampilkan ${Math.min(5, pendingEvents.length)} dari ${dashboardStats.pending_approvals || pendingEvents.length} event yang menunggu persetujuan`
+                    : 'Event yang membutuhkan persetujuan akan muncul di sini'
+                  }
                 </Typography>
               </Box>
               <Button
@@ -870,11 +879,13 @@ const AdminDashboard: React.FC = () => {
         </Card>
 
         {/* Dashboard Charts */}
-        <DashboardCharts
-          eventsPerMonth={chartData.eventsPerMonth}
-          participantsPerMonth={chartData.participantsPerMonth}
-          topEvents={chartData.topEvents}
-        />
+        {chartData && chartData.eventsPerMonth && (
+          <DashboardCharts
+            eventsPerMonth={chartData.eventsPerMonth}
+            participantsPerMonth={chartData.participantsPerMonth}
+            topEvents={chartData.topEvents}
+          />
+        )}
 
         {/* Actions Menu */}
         <Menu

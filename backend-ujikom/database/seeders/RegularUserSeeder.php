@@ -24,7 +24,6 @@ class RegularUserSeeder extends Seeder
                 'address' => 'Jl. Contoh No. 1',
                 'education' => 'S1 Ekonomi',
                 'role' => 'user',
-                'is_admin' => false,
                 'is_verified' => false, // Belum terverifikasi
                 'status' => 'active',
             ],
@@ -36,7 +35,6 @@ class RegularUserSeeder extends Seeder
                 'address' => 'Jl. Contoh No. 2',
                 'education' => 'S1 Hukum',
                 'role' => 'user',
-                'is_admin' => false,
                 'is_verified' => false, // Belum terverifikasi
                 'status' => 'active',
             ],
@@ -48,7 +46,6 @@ class RegularUserSeeder extends Seeder
                 'address' => 'Jl. Contoh No. 3',
                 'education' => 'S1 Teknik',
                 'role' => 'user',
-                'is_admin' => false,
                 'is_verified' => false, // Belum terverifikasi
                 'status' => 'active',
             ],

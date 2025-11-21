@@ -59,7 +59,7 @@ class AuthController extends Controller
                     'ip' => $request->ip(),
                     'user_agent' => $request->userAgent()
                 ]);
-                
+
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Email atau password salah.',
@@ -71,7 +71,7 @@ class AuthController extends Controller
                     $verificationCode = $user->generateVerificationCode();
                     $user->notify(new EmailVerificationNotification($verificationCode));
                 }
-                
+
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Silakan verifikasi email Anda terlebih dahulu.',
@@ -96,21 +96,21 @@ class AuthController extends Controller
                     'token' => $token,
                 ],
             ], 200);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Data tidak valid',
                 'errors' => $e->errors(),
             ], 422);
-                
+
         } catch (\Exception $e) {
             Log::error('Login error - ' . $e->getMessage(), [
                 'exception' => $e,
                 'email' => $request->email,
                 'ip' => $request->ip()
             ]);
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat login. Silakan coba lagi nanti.',
@@ -217,7 +217,7 @@ class AuthController extends Controller
                 'errors' => $e->errors(),
                 'request_data' => $request->all()
             ]);
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Data tidak valid',
@@ -229,7 +229,7 @@ class AuthController extends Controller
                 'exception' => $e,
                 'request_data' => $request->all()
             ]);
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat registrasi. Silakan coba lagi nanti.',
@@ -250,15 +250,15 @@ class AuthController extends Controller
             if ($request->user()) {
                 $request->user()->tokens()->delete();
             }
-            
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Logout berhasil',
             ], 200);
-            
+
         } catch (\Exception $e) {
             Log::error('Logout error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat logout.',
@@ -276,7 +276,7 @@ class AuthController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
@@ -288,10 +288,10 @@ class AuthController extends Controller
                 'status' => 'success',
                 'data' => $user,
             ], 200);
-            
+
         } catch (\Exception $e) {
             Log::error('Get user error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat mengambil data user.',
@@ -327,10 +327,10 @@ class AuthController extends Controller
                     'message' => 'Email tidak ditemukan.',
                 ], 404);
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Forgot password error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat mengirim link reset password.',
@@ -377,10 +377,10 @@ class AuthController extends Controller
                     'message' => 'Token reset password tidak valid.',
                 ], 400);
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Reset password error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat reset password.',
@@ -424,10 +424,10 @@ class AuthController extends Controller
                 'status' => 'error',
                 'message' => 'Gagal memverifikasi email.',
             ], 500);
-            
+
         } catch (\Exception $e) {
             Log::error('Email verification error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat verifikasi email.',
@@ -460,10 +460,10 @@ class AuthController extends Controller
                 'status' => 'success',
                 'message' => 'Email verifikasi telah dikirim ulang.',
             ], 200);
-            
+
         } catch (\Exception $e) {
             Log::error('Resend verification email error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat mengirim email verifikasi.',
@@ -481,15 +481,14 @@ class AuthController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
                 'phone' => 'sometimes|string|max:20|regex:/^[0-9+\-\s()]+$/',
                 'address' => 'sometimes|string|max:500',
-                'education' => 'sometimes|string|in:High School,Associate Degree,Bachelor\'s Degree,Master\'s Degree,Doctorate,Other',
+                'education' => 'sometimes|nullable|string|max:255',
             ], [
                 'phone.regex' => 'Format nomor telepon tidak valid.',
-                'education.in' => 'Pendidikan yang dipilih tidak valid.',
             ]);
 
             $user->update($validated);
@@ -499,7 +498,7 @@ class AuthController extends Controller
                 'message' => 'Profile berhasil diperbarui',
                 'data' => $user,
             ], 200);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status' => 'error',
@@ -508,10 +507,68 @@ class AuthController extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('Update profile error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat memperbarui profile.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Upload profile picture.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadProfilePicture(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            $validated = $request->validate([
+                'profile_picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+            ], [
+                'profile_picture.required' => 'Gambar profile harus diupload.',
+                'profile_picture.image' => 'File harus berupa gambar.',
+                'profile_picture.mimes' => 'Format gambar harus jpeg, png, jpg, atau gif.',
+                'profile_picture.max' => 'Ukuran gambar maksimal 2MB.',
+            ]);
+
+            // Delete old profile picture if exists
+            if ($user->profile_picture) {
+                \Storage::disk('public')->delete($user->profile_picture);
+            }
+
+            // Store new profile picture
+            $path = $request->file('profile_picture')->store('profile_pictures', 'public');
+
+            $user->update([
+                'profile_picture' => $path,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Foto profile berhasil diupload',
+                'data' => [
+                    'profile_picture' => $path,
+                    'profile_picture_url' => url('storage/' . $path),
+                    'user' => $user,
+                ],
+            ], 200);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data tidak valid',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Upload profile picture error: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan saat upload foto profile.',
             ], 500);
         }
     }
@@ -526,7 +583,7 @@ class AuthController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             $validated = $request->validate([
                 'current_password' => 'required|string',
                 'new_password' => [
@@ -557,7 +614,7 @@ class AuthController extends Controller
                 'status' => 'success',
                 'message' => 'Password berhasil diperbarui',
             ], 200);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status' => 'error',
@@ -566,7 +623,7 @@ class AuthController extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('Update password error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat memperbarui password.',
@@ -637,7 +694,7 @@ class AuthController extends Controller
                     'token' => $token,
                 ],
             ], 200);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status' => 'error',
@@ -646,7 +703,7 @@ class AuthController extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('OTP verification error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat verifikasi OTP.',
@@ -694,7 +751,7 @@ class AuthController extends Controller
                 'status' => 'success',
                 'message' => 'Kode OTP baru telah dikirim ke email Anda.',
             ], 200);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status' => 'error',
@@ -703,7 +760,7 @@ class AuthController extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('Resend OTP error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat mengirim ulang OTP.',

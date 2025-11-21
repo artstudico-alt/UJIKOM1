@@ -50,6 +50,8 @@ import {
   Notifications as NotificationIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,6 +67,7 @@ const AdminEventManagement: React.FC = () => {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({
@@ -373,6 +376,73 @@ const AdminEventManagement: React.FC = () => {
     }
   };
 
+  const handleEditEvent = (event: AdminEvent) => {
+    // Navigate to edit page with event ID
+    navigate(`/admin/events/edit/${event.id}`);
+  };
+
+  const handleDeleteEvent = (event: AdminEvent) => {
+    setSelectedEvent(event);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!selectedEvent) return;
+
+    setLoading(true);
+    try {
+      console.log('🗑️ Deleting event:', selectedEvent.id);
+      
+      // Call delete API
+      await adminApiService.deleteEvent(selectedEvent.id);
+      
+      console.log('✅ Event deleted successfully');
+      
+      // Reload events from database
+      const apiEvents = await adminApiService.getAllEvents();
+      
+      // Convert API events to display format
+      const convertedApiEvents: AdminEvent[] = (apiEvents.data || []).map(event => ({
+        ...event,
+        name: event.title || '',
+        eventDate: event.date || '',
+        startTime: event.start_time || '',
+        endTime: event.end_time || '',
+        maxParticipants: event.max_participants || 0,
+        currentParticipants: event.participants_count || 0,
+        registrationDate: event.registration_deadline || '',
+        organizerName: event.organizer_name || '',
+        organizerEmail: event.organizer_email || '',
+        organizerContact: event.organizer_contact || '',
+        image: (event as any).image || event.image_url || '',
+        createdAt: event.created_at || '',
+        submittedAt: event.submitted_at || '',
+        approvedAt: event.approved_at || '',
+        rejectedAt: event.rejected_at || ''
+      } as AdminEvent));
+      
+      const allEvents = convertedApiEvents;
+      setEvents(allEvents);
+      
+      setDeleteDialogOpen(false);
+      setSelectedEvent(null);
+      setSnackbar({
+        open: true,
+        message: `Event "${selectedEvent.title}" berhasil dihapus!`,
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      setSnackbar({
+        open: true,
+        message: 'Gagal menghapus event',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateAdminEvent = () => {
     // Navigate to create form like EO (ONLY CREATE uses separate form)
     navigate('/admin/events/create');
@@ -564,6 +634,28 @@ const AdminEventManagement: React.FC = () => {
                       title="Lihat Detail"
                     >
                       <ViewIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditEvent(event);
+                      }}
+                      sx={{ color: '#f59e0b' }}
+                      title="Edit Event"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEvent(event);
+                      }}
+                      sx={{ color: '#ef4444' }}
+                      title="Hapus Event"
+                    >
+                      <DeleteIcon />
                     </IconButton>
                     {event.status === 'pending_approval' && (
                       <>
@@ -974,6 +1066,62 @@ const AdminEventManagement: React.FC = () => {
               startIcon={loading ? <CircularProgress size={20} /> : <RejectIcon />}
             >
               {loading ? 'Menolak...' : 'Tolak Event'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog 
+          open={deleteDialogOpen} 
+          onClose={() => !loading && setDeleteDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            <Typography variant="h6" fontWeight="bold" sx={{ color: 'error.main' }}>
+              ⚠️ Konfirmasi Hapus Event
+            </Typography>
+          </DialogTitle>
+          <DialogContent>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2" fontWeight="bold">
+                Perhatian! Tindakan ini tidak dapat dibatalkan.
+              </Typography>
+            </Alert>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              Apakah Anda yakin ingin menghapus event "<strong>{selectedEvent?.title}</strong>"?
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Semua data terkait event ini akan dihapus secara permanen, termasuk:
+            </Typography>
+            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+              <Typography component="li" variant="body2" color="text.secondary">
+                Data peserta yang terdaftar
+              </Typography>
+              <Typography component="li" variant="body2" color="text.secondary">
+                History pembayaran
+              </Typography>
+              <Typography component="li" variant="body2" color="text.secondary">
+                Sertifikat yang telah diterbitkan
+              </Typography>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button 
+              onClick={() => setDeleteDialogOpen(false)} 
+              disabled={loading}
+              variant="outlined"
+            >
+              Batal
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={confirmDeleteEvent}
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={20} /> : <DeleteIcon />}
+            >
+              {loading ? 'Menghapus...' : 'Ya, Hapus Event'}
             </Button>
           </DialogActions>
         </Dialog>

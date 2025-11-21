@@ -41,4 +41,12 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/auth/google/callback'),
     ],
 
+    'doku' => [
+        'environment' => env('DOKU_ENVIRONMENT', 'sandbox'),
+        'client_id' => env('DOKU_CLIENT_ID'),
+        'secret_key' => env('DOKU_SECRET_KEY'),
+        'base_url' => env('DOKU_BASE_URL', 'https://api-sandbox.doku.com'),
+        'redirect_url' => env('FRONTEND_URL', 'http://localhost:3000') . '/payment/success',
+    ],
+
 ];

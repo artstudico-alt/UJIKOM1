@@ -51,6 +51,9 @@ interface HomeEvent {
   early_bird_enabled: boolean;
   early_bird_discount: number;
   organizer: string;
+  registration_deadline?: string; // CRITICAL: Registration deadline from backend
+  status?: string; // Event status from backend
+  price?: number; // Event price (0 = free)
 }
 
 const Home: React.FC = () => {
@@ -119,7 +122,10 @@ const Home: React.FC = () => {
                 featured: false,
                 early_bird_enabled: false,
                 early_bird_discount: 0,
-                organizer: event.organizer_name || 'GOMOMENT'
+                organizer: event.organizer_name || 'GOMOMENT',
+                registration_deadline: event.registration_deadline || '', // CRITICAL: Preserve registration deadline!
+                status: event.status || 'published', // Preserve backend status
+                price: event.price || 0 // Event price
               };
             });
             
@@ -409,12 +415,13 @@ const Home: React.FC = () => {
       {/* Floating Elements */}
       <Box sx={{
         position: 'absolute',
-        top: 0,
+        top: 100,
         left: 0,
         right: 0,
         bottom: 0,
         zIndex: 1,
         overflow: 'hidden',
+        pointerEvents: 'none',
         '&::before': {
           content: '""',
           position: 'absolute',
@@ -454,6 +461,7 @@ const Home: React.FC = () => {
         zIndex: 1,
         filter: 'blur(1px)',
         transform: 'rotate(45deg)',
+        pointerEvents: 'none',
       }} />
 
       <Container maxWidth="lg" sx={{ 
@@ -776,23 +784,30 @@ const Home: React.FC = () => {
                   start_time: event.time.split(' - ')[0] || '09:00',
                   end_time: event.time.split(' - ')[1] || '17:00',
                   image: event.image,
-                  status: 'published' as const,
-                  organizer: event.organizer
+                  status: (event.status || 'published') as 'published' | 'draft' | 'pending_approval' | 'approved' | 'ongoing' | 'completed' | 'cancelled' | 'rejected',
+                  organizer: event.organizer,
+                  registration_deadline: event.registration_deadline || '', // CRITICAL: Pass registration deadline to EventCard!
+                  date: event.date, // Preserve original date field for EventCard logic
+                  price: event.price || 0 // Event price
                 };
+                
+                // DEBUG: Log what we're passing to EventCard
+                console.log('🏠 Home EventCard Data for:', event.title, {
+                  registration_deadline: eventCardData.registration_deadline,
+                  status: eventCardData.status,
+                  date: eventCardData.date
+                });
 
                 return (
                   <Box key={event.id} sx={{ minWidth: { xs: '280px', sm: '320px', md: '360px' }, flex: '0 0 auto' }}>
                     <EventCard
                       event={eventCardData}
-                      onViewDetails={(id) => {
-                        console.log('🎯 Home: View Details clicked for event ID:', id);
-                        navigate(`/events/${id}`);
-                      }}
                       onRegister={(id) => {
                         console.log('🎯 Home: Register clicked for event ID:', id);
+                        // Always go to registration page first (new flow)
                         navigate(`/events/${id}/register`);
                       }}
-                      isAuthenticated={!!user}
+                      onViewDetails={(id) => navigate(`/events/${id}`)}
                     />
                   </Box>
                 );

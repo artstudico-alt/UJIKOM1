@@ -56,31 +56,34 @@ class NotificationService
     }
 
     /**
-     * Send notification for new event
+     * Send notification for new event to public users only
      */
     public function sendNewEventNotification(Event $event): void
     {
         try {
-            // Get all verified users
-            $users = User::where('is_verified', true)->get();
+            // Get all verified users with role 'user' (public users only, not admin/EO)
+            $users = User::where('is_verified', true)
+                ->where('role', 'user')
+                ->get();
 
             foreach ($users as $user) {
                 Notification::create([
                     'user_id' => $user->id,
                     'event_id' => $event->id,
                     'type' => 'new_event',
-                    'title' => 'Event Baru Tersedia',
+                    'title' => 'Event Baru Tersedia! 🎉',
                     'message' => "Event '{$event->title}' telah dibuka untuk pendaftaran. Segera daftar sebelum kuota penuh!",
                     'data' => [
                         'event_title' => $event->title,
-                        'event_date' => $event->date->format('Y-m-d'),
+                        'event_date' => $event->date,
                         'event_location' => $event->location,
-                        'event_time' => $event->start_time ? $event->start_time->format('H:i') : null,
+                        'event_time' => $event->start_time,
+                        'action_url' => '/events/' . $event->id,
                     ],
                 ]);
             }
 
-            Log::info('New event notifications sent', [
+            Log::info('New event notifications sent to public users', [
                 'event_id' => $event->id,
                 'event_title' => $event->title,
                 'users_count' => $users->count(),
@@ -150,13 +153,14 @@ class NotificationService
                     'user_id' => $participant->participant_id,
                     'event_id' => $event->id,
                     'type' => 'attendance_started',
-                    'title' => 'Daftar Hadir Dimulai: ' . $event->title,
-                    'message' => "Daftar hadir untuk event '{$event->title}' telah dimulai. Silakan lakukan absensi!",
+                    'title' => 'Absensi Sudah Dibuka! ✅',
+                    'message' => "Event '{$event->title}' sudah dimulai. Silakan lakukan absensi sekarang!",
                     'data' => [
                         'event_title' => $event->title,
                         'attendance_token' => $participant->attendance_token,
-                        'event_date' => $event->date->format('Y-m-d'),
-                        'event_time' => $event->start_time ? $event->start_time->format('H:i') : null,
+                        'event_date' => $event->date,
+                        'event_time' => $event->start_time,
+                        'action_url' => '/my-events',
                     ],
                 ]);
             }
@@ -299,13 +303,14 @@ class NotificationService
                 'user_id' => $user->id,
                 'event_id' => $certificate->event_id,
                 'type' => 'certificate_generated',
-                'title' => 'Sertifikat Telah Dibuat',
-                'message' => "Sertifikat untuk event '{$certificate->event->title}' telah siap. Silakan unduh sertifikat Anda!",
+                'title' => 'Sertifikat Sudah Tersedia! 🎓',
+                'message' => "Sertifikat untuk event '{$certificate->event->title}' sudah siap diunduh. Selamat!",
                 'data' => [
                     'event_title' => $certificate->event->title,
                     'certificate_number' => $certificate->certificate_number,
-                    'event_date' => $certificate->event->date->format('Y-m-d'),
-                    'download_url' => route('certificates.download', $certificate->id),
+                    'event_date' => $certificate->event->date,
+                    'certificate_id' => $certificate->id,
+                    'action_url' => '/my-certificates',
                 ],
             ]);
 
@@ -316,8 +321,8 @@ class NotificationService
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to send certificate generated notification', [
-                'certificate_id' => $certificate->id,
-                'user_id' => $user->id,
+                'certificate_id' => $certificate->id ?? 'unknown',
+                'user_id' => $user->id ?? 'unknown',
                 'error' => $e->getMessage(),
             ]);
         }

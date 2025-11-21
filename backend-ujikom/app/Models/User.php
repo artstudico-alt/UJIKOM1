@@ -30,6 +30,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone',
         'address',
         'education',
+        'profile_picture',
         'status',
         'role',
         'is_verified',
@@ -103,10 +104,10 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->verification_code;
     }
 
-    
+
     /**
      * Reset verification attempts
-     * 
+     *
      * @return void
      */
     public function resetVerificationAttempts()
@@ -115,10 +116,10 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->last_verification_attempt = null;
         $this->save();
     }
-    
+
     /**
      * Mark the user's email as verified
-     * 
+     *
      * @return bool
      */
     public function verifyEmail()
@@ -129,47 +130,47 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->verification_code_expires_at = null;
         $this->verification_attempts = 0;
         $this->last_verification_attempt = null;
-        
+
         return $this->save();
     }
-    
+
     /**
      * Determine if the user has verified their email address
-     * 
+     *
      * @return bool
      */
     public function hasVerifiedEmail()
     {
         return $this->is_verified;
     }
-    
+
     /**
      * Check if the user has reached the maximum verification attempts
-     * 
+     *
      * @return bool
      */
     public function hasReachedMaxVerificationAttempts()
     {
         $maxAttempts = 3; // Maksimal 3 kali percobaan
         $lockoutMinutes = 5; // Kunci selama 5 menit
-        
+
         if ($this->verification_attempts < $maxAttempts) {
             return false;
         }
-        
+
         // Jika sudah melebihi waktu lockout, reset counter
-        if ($this->last_verification_attempt && 
+        if ($this->last_verification_attempt &&
             $this->last_verification_attempt->addMinutes($lockoutMinutes)->isPast()) {
             $this->resetVerificationAttempts();
             return false;
         }
-        
+
         return true;
     }
-    
+
     /**
      * Increment the verification attempts
-     * 
+     *
      * @return void
      */
     public function incrementVerificationAttempts()
@@ -178,10 +179,10 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->last_verification_attempt = now();
         $this->save();
     }
-    
+
     /**
      * Get the remaining time until the verification code expires
-     * 
+     *
      * @return int|null
      */
     public function getVerificationCodeExpiresIn()
@@ -189,7 +190,7 @@ class User extends Authenticatable implements MustVerifyEmail
         if (!$this->verification_code_expires_at) {
             return null;
         }
-        
+
         return now()->diffInSeconds($this->verification_code_expires_at, false);
     }
 }

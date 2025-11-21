@@ -25,45 +25,51 @@ const PricingSection: React.FC = () => {
 
   const tiers = [
     {
-      title: 'User',
-      price: '0',
+      title: 'Basic',
+      price: 'Gratis',
       description: [
         'Akses ke semua event publik',
         'Pendaftaran event tanpa batas',
-        'Download sertifikat',
-        'Dukungan standar',
+        'Download sertifikat digital',
+        'Notifikasi event',
+        'Dukungan email',
       ],
-      buttonText: user ? (user.role === 'user' ? 'Paket Anda Saat Ini' : 'Pilih Paket') : 'Mulai Sekarang',
+      buttonText: user ? (user.role === 'user' ? 'Paket Anda Saat Ini' : 'Pilih Paket') : 'Mulai Gratis',
       buttonVariant: 'outlined',
       isCurrent: user?.role === 'user',
     },
     {
       title: 'Event Organizer',
       subheader: 'Paling Populer',
-      price: '75K',
+      price: '99.000',
       unit: '/ bulan',
       description: [
-        'Semua fitur di paket User',
-        'Upload dan kelola event Anda sendiri',
-        'Dashboard analitik event',
-        'Promosikan event Anda',
+        'Semua fitur Basic',
+        'Buat & kelola unlimited event',
+        'Dashboard analitik lengkap',
+        'Manajemen peserta & sertifikat',
+        'QR Code check-in',
+        'Export data peserta',
         'Dukungan prioritas',
       ],
-      buttonText: user ? (user.role === 'event_organizer' ? 'Paket Anda Saat Ini' : 'Tingkatkan ke Pro') : 'Tingkatkan ke Pro',
+      buttonText: user ? (user.role === 'event_organizer' ? 'Paket Anda Saat Ini' : 'Upgrade Sekarang') : 'Upgrade Sekarang',
       buttonVariant: 'contained',
       isCurrent: user?.role === 'event_organizer',
     },
     {
       title: 'Enterprise',
-      price: 'Custom',
+      price: '499.000',
+      unit: '/ bulan',
       description: [
-        'Semua fitur di paket Event Organizer',
-        'Manajemen tim & role',
-        'Branding kustom',
-        'API akses & integrasi',
-        'Dukungan khusus 24/7',
+        'Semua fitur Event Organizer',
+        'Multi-user & team management',
+        'White-label branding',
+        'Custom domain',
+        'API access & integrasi',
+        'Dedicated account manager',
+        'Support 24/7',
       ],
-      buttonText: user ? (user.role === 'admin' ? 'Paket Anda Saat Ini' : 'Hubungi Kami') : 'Hubungi Kami',
+      buttonText: user ? (user.role === 'admin' ? 'Paket Anda Saat Ini' : 'Hubungi Sales') : 'Hubungi Sales',
       buttonVariant: 'outlined',
       isCurrent: user?.role === 'admin',
     },
@@ -81,39 +87,35 @@ const PricingSection: React.FC = () => {
       }}
     >
       <Box sx={{ mb: 6, textAlign: 'center' }}>
-        <Zoom in timeout={500}>
-          <Box>
-            <Chip
-              icon={<WorkspacePremium />}
-              label="Jadilah Event Organizer"
-              color="primary"
-              sx={{
-                mb: 2,
-                fontSize: '1rem',
-                fontWeight: 'bold',
-                p: 2.5,
-                background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                color: 'white',
-              }}
-            />
-            <Typography
-              variant="h3"
-              component="h2"
-              sx={{
-                fontWeight: 'bold',
-                mb: 2,
-                background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Tingkatkan Potensi Anda
-            </Typography>
-            <Typography variant="h6" sx={{ color: '#666' }}>
-              Pilih paket yang tepat untuk mulai membuat dan mengelola event Anda sendiri.
-            </Typography>
-          </Box>
-        </Zoom>
+        <Box>
+          <Chip
+            icon={<WorkspacePremium />}
+            label="Jadilah Event Organizer"
+            sx={{
+              mb: 3,
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              px: 3,
+              py: 2.5,
+              bgcolor: '#667eea',
+              color: 'white',
+            }}
+          />
+          <Typography
+            variant="h3"
+            component="h2"
+            sx={{
+              fontWeight: 700,
+              mb: 2,
+              color: '#667eea',
+            }}
+          >
+            Paket Harga Event Organizer
+          </Typography>
+          <Typography variant="h6" sx={{ color: '#666', fontWeight: 400 }}>
+            Pilih paket yang sesuai dengan kebutuhan Anda
+          </Typography>
+        </Box>
       </Box>
 
       <Box
@@ -130,19 +132,15 @@ const PricingSection: React.FC = () => {
         }}
       >
         {tiers.map((tier, index) => (
-          <Zoom in timeout={700 + index * 200} key={tier.title}>
             <Card
+              key={tier.title}
               sx={{
-                borderRadius: 4,
-                border: tier.title === 'Event Organizer' ? '2px solid' : '1px solid',
-                borderColor:
-                  tier.title === 'Event Organizer'
-                    ? 'primary.main'
-                    : 'rgba(0, 0, 0, 0.12)',
-                transform: tier.title === 'Event Organizer' ? 'scale(1.05)' : 'none',
+                borderRadius: 3,
+                border: tier.title === 'Event Organizer' ? '2px solid #667eea' : '1px solid rgba(0, 0, 0, 0.12)',
+                transform: tier.title === 'Event Organizer' ? 'scale(1.03)' : 'none',
                 boxShadow: tier.title === 'Event Organizer'
-                    ? '0 16px 40px rgba(156, 39, 176, 0.2)'
-                    : '0 4px 12px rgba(0, 0, 0, 0.05)',
+                    ? '0 8px 24px rgba(102, 126, 234, 0.15)'
+                    : '0 2px 8px rgba(0, 0, 0, 0.08)',
                 position: 'relative',
                 overflow: 'visible',
                 height: '100%',
@@ -154,15 +152,15 @@ const PricingSection: React.FC = () => {
                 <Chip
                   icon={<Star />}
                   label={tier.subheader}
-                  color="primary"
                   size="small"
                   sx={{
                     position: 'absolute',
                     top: -12,
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    fontWeight: 'bold',
-                    background: 'linear-gradient(45deg, #ff9800, #ff5722)',
+                    fontWeight: 600,
+                    bgcolor: '#667eea',
+                    color: 'white',
                   }}
                 />
               )}
@@ -206,8 +204,12 @@ const PricingSection: React.FC = () => {
                       if (user?.role === 'event_organizer' || user?.role === 'admin') {
                         navigate('/organizer/dashboard');
                       } else {
-                        navigate('/pricing');
+                        // Redirect to payment upgrade page
+                        navigate('/payment/upgrade');
                       }
+                    } else if (tier.title === 'Enterprise') {
+                      // Contact sales untuk enterprise
+                      window.location.href = 'mailto:sales@gomoment.com?subject=Enterprise%20Plan%20Inquiry';
                     } else {
                       navigate('/events');
                     }
@@ -221,7 +223,6 @@ const PricingSection: React.FC = () => {
                 </Button>
               </CardContent>
             </Card>
-          </Zoom>
         ))}
       </Box>
     </Paper>

@@ -43,18 +43,24 @@ export interface OrganizerEvent {
   start_time: string;
   end_time: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   max_participants?: number;
+  current_participants?: number;
   registration_deadline: string;
   organizer_name: string;
   organizer_email: string;
   organizer_contact?: string;
   category: string;
+  event_type?: string;
   price?: number;
   registration_date: string;
   image_url?: string;
   image?: string; // Processed image URL from backend
   flyer_path?: string; // Path to uploaded flyer
   flyer?: File;
+  has_certificate?: boolean;
+  certificate_required?: boolean;
   status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'cancelled' | 'ongoing' | 'completed';
   organizer_type?: 'organizer' | 'admin';
   created_at?: string;
@@ -63,6 +69,14 @@ export interface OrganizerEvent {
   approved_at?: string;
   rejected_at?: string;
   rejection_reason?: string;
+  // Payment settings
+  payment_methods?: string[] | string;
+  bank_account_info?: {
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+  } | string;
+  payment_instructions?: string;
 }
 
 export interface ApiResponse<T> {
@@ -183,6 +197,13 @@ class OrganizerApiService {
   }
 
   /**
+   * Get single event by ID (alias for getEvent)
+   */
+  async getEventById(id: string): Promise<ApiResponse<OrganizerEvent>> {
+    return this.getEvent(parseInt(id, 10));
+  }
+
+  /**
    * Create new event
    */
   async createEvent(eventData: OrganizerEvent): Promise<ApiResponse<OrganizerEvent>> {
@@ -278,8 +299,9 @@ class OrganizerApiService {
   /**
    * Update existing event
    */
-  async updateEvent(id: number, eventData: Partial<OrganizerEvent>): Promise<ApiResponse<OrganizerEvent>> {
+  async updateEvent(id: string | number, eventData: Partial<OrganizerEvent>): Promise<ApiResponse<OrganizerEvent>> {
     try {
+      const eventId = typeof id === 'string' ? parseInt(id, 10) : id;
       const formData = new FormData();
       
       // Add all event fields to FormData
@@ -296,7 +318,7 @@ class OrganizerApiService {
       // Add method override for PUT request with FormData
       formData.append('_method', 'PUT');
 
-      const response = await apiClient.post(`/organizer/events/${id}`, formData, {
+      const response = await apiClient.post(`/organizer/events/${eventId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -304,19 +326,22 @@ class OrganizerApiService {
       
       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Failed to update event');
+      console.error('Update event error:', error);
+      throw error;
     }
   }
 
   /**
    * Delete event
    */
-  async deleteEvent(id: number): Promise<ApiResponse<null>> {
+  async deleteEvent(eventId: number | string): Promise<ApiResponse<null>> {
     try {
+      const id = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
       const response = await apiClient.delete(`/organizer/events/${id}`);
       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Failed to delete event');
+      console.error('Delete event error:', error);
+      throw error;
     }
   }
 
@@ -373,6 +398,25 @@ class OrganizerApiService {
       return this.updateEvent(eventData.id, draftData);
     } else {
       return this.createEvent(draftData);
+    }
+  }
+
+  /**
+   * Get payments for organizer's events
+   */
+  async getPayments(params?: {
+    status?: string;
+    event_id?: string;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<any> {
+    try {
+      const response = await apiClient.get('/organizer/payments', { params });
+      return response.data;
+    } catch (error: any) {
+      console.error('Get payments error:', error);
+      throw error;
     }
   }
 }

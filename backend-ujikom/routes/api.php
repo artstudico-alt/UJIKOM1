@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizerController;
 use App\Http\Controllers\Api\OrganizerEventController;
 use App\Http\Controllers\Api\AdminEventApprovalController;
+use App\Http\Controllers\PaymentController;
 
 // Public Routes
 Route::get('/events', [EventController::class, 'index']);
@@ -49,6 +50,9 @@ Route::get('/certificates/search', [CertificateController::class, 'search']);
 Route::get('/certificates/verify/{certificateNumber}', [CertificateController::class, 'verify']);
 Route::get('/certificates/{id}/download', [CertificateController::class, 'download']);
 
+// Payment Callback (Public - untuk DOKU webhook)
+Route::post('/payments/callback', [PaymentController::class, 'callback']);
+
 // Protected Routes (butuh token Sanctum)
 Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     // Auth
@@ -57,6 +61,7 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
 
     // User Profile
     Route::put('/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/profile/upload-picture', [AuthController::class, 'uploadProfilePicture']);
     Route::put('/password', [AuthController::class, 'updatePassword']);
 
     // Dashboard
@@ -86,8 +91,8 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         Route::get('/users/statistics', [UserController::class, 'statistics']);
 
         // Admin Dashboard
-        Route::get('/admin/dashboard/stats', [App\Http\Controllers\Admin\DashboardController::class, 'statistics']);
-        Route::get('/admin/dashboard/charts', [App\Http\Controllers\Admin\DashboardController::class, 'chartData']);
+        Route::get('/admin/dashboard/stats', [AdminEventApprovalController::class, 'getDashboardStats']);
+        Route::get('/admin/dashboard/charts', [AdminEventApprovalController::class, 'getChartData']);
 
         // Export Data
         Route::get('/admin/export/events', [App\Http\Controllers\Admin\DashboardController::class, 'exportEvents']);
@@ -106,16 +111,22 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         // Admin Event Management Routes
         Route::get('/admin/events', [AdminEventApprovalController::class, 'getAllEvents']);
         Route::get('/admin/events/recent', [AdminEventApprovalController::class, 'getRecentEvents']);
+
+        // Admin Event Approval Routes - MUST BE BEFORE DYNAMIC ROUTES
+        Route::get('/admin/events/pending', [AdminEventApprovalController::class, 'getPendingEvents']);
+        Route::get('/admin/events/approval-stats', [AdminEventApprovalController::class, 'getApprovalStats']);
+        Route::post('/admin/events/bulk-approve', [AdminEventApprovalController::class, 'bulkApprove']);
+
+        // Dynamic routes with {event} parameter - MUST BE AFTER SPECIFIC ROUTES
+        Route::get('/admin/events/{event}', [AdminEventApprovalController::class, 'getEventById']);
         Route::post('/admin/events', [AdminEventApprovalController::class, 'createEvent']);
         Route::put('/admin/events/{event}', [AdminEventApprovalController::class, 'updateEvent']);
         Route::delete('/admin/events/{event}', [AdminEventApprovalController::class, 'deleteEvent']);
-
-        // Admin Event Approval Routes
-        Route::get('/admin/events/pending', [AdminEventApprovalController::class, 'getPendingEvents']);
         Route::post('/admin/events/{event}/approve', [AdminEventApprovalController::class, 'approveEvent']);
         Route::post('/admin/events/{event}/reject', [AdminEventApprovalController::class, 'rejectEvent']);
-        Route::get('/admin/events/approval-stats', [AdminEventApprovalController::class, 'getApprovalStats']);
-        Route::post('/admin/events/bulk-approve', [AdminEventApprovalController::class, 'bulkApprove']);
+
+        // Admin Payment Routes
+        Route::get('/admin/payments', [PaymentController::class, 'getAllPayments']);
     });
 
     // Attendance
@@ -159,6 +170,15 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
 
+    // Payment Routes
+    Route::get('/payments/methods', [PaymentController::class, 'getPaymentMethods']);
+    Route::post('/payments/create', [PaymentController::class, 'createPayment']);
+    Route::post('/payments/upgrade', [PaymentController::class, 'createUpgradePayment']); // Upgrade account payment
+    Route::get('/payments/{invoiceNumber}/status', [PaymentController::class, 'checkStatus']);
+    Route::post('/payments/{invoiceNumber}/simulate-success', [PaymentController::class, 'simulateSuccess']); // For development only
+    Route::get('/payments/history', [PaymentController::class, 'getUserPayments']);
+    Route::post('/payments/{invoiceNumber}/cancel', [PaymentController::class, 'cancelPayment']);
+
     // Test route
     Route::get('/test-certificates', function() {
         return response()->json(['status' => 'success', 'message' => 'Test route works']);
@@ -179,6 +199,9 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         // Participants Management
         Route::get('/events/{eventId}/participants', [OrganizerEventController::class, 'getParticipants']);
         Route::get('/events/{eventId}/participants/export', [OrganizerEventController::class, 'exportParticipants']);
+
+        // Payment Management
+        Route::get('/payments', [PaymentController::class, 'getOrganizerPayments']);
     });
 });
 

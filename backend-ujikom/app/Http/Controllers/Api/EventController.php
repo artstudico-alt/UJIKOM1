@@ -60,6 +60,14 @@ class EventController extends Controller
                 }
             }
 
+            // Filter by event type
+            if ($request->has('event_type') && $request->event_type !== 'all') {
+                $query->where(function($q) use ($request) {
+                    $q->where('event_type', $request->event_type)
+                      ->orWhere('category', $request->event_type); // Fallback to category
+                });
+            }
+
             // Sorting functionality
             if ($request->has('sort')) {
                 switch ($request->sort) {
@@ -937,6 +945,26 @@ class EventController extends Controller
                     $status = 'ongoing';
                 }
 
+                // Generate image URL with proper fallback logic (same as EventResource)
+                $imageUrl = null;
+
+                // Priority 1: External image URL (for organizer events)
+                if (!empty($event->image_url)) {
+                    $imageUrl = $event->image_url;
+                    Log::info("MyEvents - Event {$event->id} using image_url", [
+                        'image_url' => $imageUrl
+                    ]);
+                }
+                // Priority 2: Uploaded flyer path
+                elseif ($event->flyer_path) {
+                    $imageUrl = url('storage/' . $event->flyer_path) . '?v=' . time();
+                    Log::info("MyEvents - Event {$event->id} using flyer_path", [
+                        'flyer_path' => $event->flyer_path,
+                        'full_url' => $imageUrl,
+                        'file_exists' => file_exists(storage_path('app/public/' . $event->flyer_path))
+                    ]);
+                }
+
                 return [
                     'id' => $event->id,
                     'title' => $event->title,
@@ -945,7 +973,7 @@ class EventController extends Controller
                     'start_time' => $event->start_time,
                     'end_time' => $event->end_time,
                     'location' => $event->location,
-                    'image' => $event->flyer_path ? asset('storage/' . $event->flyer_path) : null,
+                    'image' => $imageUrl,
                     'max_participants' => $event->max_participants,
                     'current_participants' => $event->eventParticipants()->count(),
                     'status' => $status,

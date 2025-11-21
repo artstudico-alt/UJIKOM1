@@ -35,7 +35,7 @@ class CertificateController extends Controller
                 }
             ])
             ->select([
-                'id', 'title', 'date', 'location', 
+                'id', 'title', 'date', 'location',
                 'certificate_template_path', 'has_certificate', 'certificate_required'
             ])
             ->orderBy('date', 'desc')
@@ -48,7 +48,7 @@ class CertificateController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error fetching events with certificates: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengambil data events',
@@ -64,7 +64,7 @@ class CertificateController extends Controller
     {
         try {
             $event = Event::findOrFail($eventId);
-            
+
             $certificates = Certificate::with(['participant', 'event'])
                 ->where('event_id', $eventId)
                 ->get()
@@ -95,7 +95,7 @@ class CertificateController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error fetching event certificates: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal mengambil data sertifikat',
@@ -111,9 +111,9 @@ class CertificateController extends Controller
     {
         try {
             DB::beginTransaction();
-            
+
             $event = Event::findOrFail($eventId);
-            
+
             $validated = $request->validate([
                 'has_certificate' => 'required|boolean',
                 'certificate_required' => 'required|boolean',
@@ -136,7 +136,7 @@ class CertificateController extends Controller
             }
 
             $event->save();
-            
+
             DB::commit();
 
             return response()->json([
@@ -155,7 +155,7 @@ class CertificateController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error updating event certificate settings: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal update pengaturan sertifikat',
@@ -171,15 +171,15 @@ class CertificateController extends Controller
     {
         try {
             DB::beginTransaction();
-            
+
             $event = Event::findOrFail($eventId);
-            
+
             $validated = $request->validate([
                 'participant_id' => 'required|integer|exists:users,id',
             ]);
 
             $participantId = $validated['participant_id'];
-            
+
             // Check if participant is registered for this event
             $eventParticipant = EventParticipant::where('event_id', $eventId)
                 ->where('participant_id', $participantId)
@@ -214,7 +214,7 @@ class CertificateController extends Controller
 
             // Generate certificate
             $certificate = $this->createCertificate($event, $eventParticipant);
-            
+
             // Send certificate notification
             try {
                 $notificationService = app(NotificationService::class);
@@ -227,7 +227,7 @@ class CertificateController extends Controller
                     'error' => $e->getMessage()
                 ]);
             }
-            
+
             DB::commit();
 
             return response()->json([
@@ -246,7 +246,7 @@ class CertificateController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error generating certificate: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal generate sertifikat',
@@ -262,9 +262,9 @@ class CertificateController extends Controller
     {
         try {
             DB::beginTransaction();
-            
+
             $event = Event::findOrFail($eventId);
-            
+
             // Get eligible participants
             $eligibleParticipants = EventParticipant::where('event_id', $eventId)
                 ->where('attendance_verified_at', '!=', null)
@@ -280,15 +280,31 @@ class CertificateController extends Controller
             }
 
             $generatedCount = 0;
+            $notificationService = app(NotificationService::class);
+
             foreach ($eligibleParticipants as $participant) {
                 try {
-                    $this->createCertificate($event, $participant);
+                    $certificate = $this->createCertificate($event, $participant);
                     $generatedCount++;
+
+                    // Send notification to participant
+                    try {
+                        $user = User::find($participant->participant_id);
+                        if ($user) {
+                            $notificationService->sendCertificateGeneratedNotification($certificate, $user);
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to send certificate notification', [
+                            'certificate_id' => $certificate->id,
+                            'user_id' => $participant->participant_id,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 } catch (\Exception $e) {
                     Log::error("Error generating certificate for participant {$participant->id}: " . $e->getMessage());
                 }
             }
-            
+
             DB::commit();
 
             return response()->json([
@@ -300,7 +316,7 @@ class CertificateController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error generating all certificates: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal generate sertifikat',
@@ -316,10 +332,10 @@ class CertificateController extends Controller
     {
         try {
             $certificate = Certificate::with(['participant', 'event'])->findOrFail($certificateId);
-            
+
             // Increment download count
             $certificate->increment('download_count');
-            
+
             // Return download URL
             return response()->json([
                 'status' => 'success',
@@ -333,7 +349,7 @@ class CertificateController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error downloading certificate: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal download sertifikat',
@@ -348,20 +364,20 @@ class CertificateController extends Controller
     private function createCertificate($event, $eventParticipant)
     {
         $certificateNumber = Str::uuid();
-        
+
         // Generate certificate PDF using DomPDF
         $pdf = Pdf::loadView('certificates.template', [
             'event' => $event,
             'participant' => $eventParticipant->participant,
             'certificateNumber' => $certificateNumber,
         ]);
-        
+
         $filename = "certificate_{$event->id}_{$eventParticipant->id}_" . time() . '.pdf';
         $path = "public/certificates/{$filename}";
-        
+
         // Save the PDF to storage
         Storage::put($path, $pdf->output());
-        
+
         // Create certificate record
         $certificate = Certificate::create([
             'event_id' => $event->id,
@@ -372,21 +388,21 @@ class CertificateController extends Controller
             'issued_at' => now(),
             'download_count' => 0,
         ]);
-        
+
         // Update participant's certificate status
         $eventParticipant->update(['has_received_certificate' => true]);
-        
+
         // Send email notification
         try {
             Mail::to($eventParticipant->participant->email)
                 ->send(new CertificateGenerated($certificate, $event, $eventParticipant->participant));
-            
+
             Log::info("Certificate email sent to {$eventParticipant->participant->email} for event {$event->title}");
         } catch (\Exception $e) {
             Log::error("Failed to send certificate email to {$eventParticipant->participant->email}: " . $e->getMessage());
             // Don't fail the certificate generation if email fails
         }
-        
+
         return $certificate;
     }
 
@@ -397,7 +413,7 @@ class CertificateController extends Controller
     {
         try {
             DB::beginTransaction();
-            
+
             $validated = $request->validate([
                 'event_id' => 'required|integer|exists:events,id',
                 'participant_ids' => 'required|array',
@@ -409,7 +425,7 @@ class CertificateController extends Controller
             $event = Event::findOrFail($validated['event_id']);
             $participantIds = $validated['participant_ids'];
             $organizerName = $validated['organizer_name'];
-            
+
             // Get eligible participants
             $eligibleParticipants = EventParticipant::where('event_id', $event->id)
                 ->whereIn('participant_id', $participantIds)
@@ -437,7 +453,7 @@ class CertificateController extends Controller
                     Log::error("Error generating certificate for participant {$participant->id}: " . $e->getMessage());
                 }
             }
-            
+
             DB::commit();
 
             return response()->json([
@@ -459,7 +475,7 @@ class CertificateController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error generating certificates from builder: ' . $e->getMessage());
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Gagal generate sertifikat',
@@ -474,7 +490,7 @@ class CertificateController extends Controller
     private function createCertificateFromBuilder($event, $eventParticipant, $organizerName, $templateData = [])
     {
         $certificateNumber = Str::uuid();
-        
+
         // Generate certificate PDF using DomPDF with custom template data
         $pdf = Pdf::loadView('certificates.template', [
             'event' => $event,
@@ -483,13 +499,13 @@ class CertificateController extends Controller
             'organizerName' => $organizerName,
             'templateData' => $templateData,
         ]);
-        
+
         $filename = "certificate_{$event->id}_{$eventParticipant->id}_" . time() . '.pdf';
         $path = "public/certificates/{$filename}";
-        
+
         // Save the PDF to storage
         Storage::put($path, $pdf->output());
-        
+
         // Create certificate record
         $certificate = Certificate::create([
             'event_id' => $event->id,
@@ -500,21 +516,21 @@ class CertificateController extends Controller
             'issued_at' => now(),
             'download_count' => 0,
         ]);
-        
+
         // Update participant's certificate status
         $eventParticipant->update(['has_received_certificate' => true]);
-        
+
         // Send email notification
         try {
             Mail::to($eventParticipant->participant->email)
                 ->send(new CertificateGenerated($certificate, $event, $eventParticipant->participant));
-            
+
             Log::info("Certificate email sent to {$eventParticipant->participant->email} for event {$event->title}");
         } catch (\Exception $e) {
             Log::error("Failed to send certificate email to {$eventParticipant->participant->email}: " . $e->getMessage());
             // Don't fail the certificate generation if email fails
         }
-        
+
         return $certificate;
     }
 

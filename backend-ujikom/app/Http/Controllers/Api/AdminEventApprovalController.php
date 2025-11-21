@@ -5,12 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Http\Resources\EventResource;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
 class AdminEventApprovalController extends Controller
 {
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     /**
      * Get all events for admin dashboard
      */
@@ -53,6 +60,29 @@ class AdminEventApprovalController extends Controller
                 'status' => 'error',
                 'message' => 'Failed to fetch events: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Get single event by ID for editing
+     */
+    public function getEventById($eventId): JsonResponse
+    {
+        try {
+            $event = Event::with(['creator', 'eventParticipants'])
+                ->withCount('eventParticipants as current_participants')
+                ->findOrFail($eventId);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => new EventResource($event)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Event tidak ditemukan: ' . $e->getMessage()
+            ], 404);
         }
     }
 
@@ -104,21 +134,31 @@ class AdminEventApprovalController extends Controller
                 });
             }
 
+            $perPage = $request->get('per_page', 10);
             $events = $query->orderBy('submitted_at', 'desc')
-                           ->paginate($request->get('per_page', 10));
+                           ->paginate($perPage);
+
+            // Transform events collection to array
+            $eventsData = $events->getCollection()->map(function($event) {
+                return new EventResource($event);
+            });
 
             return response()->json([
                 'status' => 'success',
-                'data' => EventResource::collection($events),
+                'data' => $eventsData,
                 'pagination' => [
                     'current_page' => $events->currentPage(),
                     'last_page' => $events->lastPage(),
                     'per_page' => $events->perPage(),
                     'total' => $events->total(),
+                ],
+                'meta' => [
+                    'total_pending' => $events->total(),
                 ]
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Get pending events error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch pending events: ' . $e->getMessage()
@@ -172,6 +212,9 @@ class AdminEventApprovalController extends Controller
                 'is_active' => $event->is_active,
                 'approved_at' => $event->approved_at
             ]);
+
+            // Send notification to all public users about new event
+            $this->notificationService->sendNewEventNotification($event);
 
             return response()->json([
                 'status' => 'success',
@@ -508,6 +551,142 @@ class AdminEventApprovalController extends Controller
                 'status' => 'error',
                 'message' => 'Gagal menghapus event: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    public function getDashboardStats(): JsonResponse
+    {
+        try {
+            $totalUsers = \App\Models\User::count();
+            $totalEvents = Event::count();
+            $totalOrganizerEvents = Event::where('organizer_type', 'organizer')->count();
+            $totalAdminEvents = Event::where('organizer_type', 'admin')->count();
+            $pendingApprovals = Event::where('status', 'pending_approval')->count();
+            $publishedEvents = Event::whereIn('status', ['published', 'approved'])->count();
+            $activeEvents = Event::where('is_active', true)->count();
+            $completedEvents = Event::where('status', 'completed')->count();
+
+            // Total participants across all events
+            $totalParticipants = \DB::table('event_participant')->count();
+
+            // New users this month
+            $newUsersThisMonth = \App\Models\User::whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->count();
+
+            // New events this month
+            $newEventsThisMonth = Event::whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->count();
+
+            // Revenue this month (sum of paid events - ONLY published/approved events)
+            $revenueThisMonth = Event::whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->whereIn('status', ['published', 'approved']) // Only count published events
+                ->sum('price');
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'total_users' => $totalUsers,
+                    'total_events' => $totalEvents,
+                    'total_organizer_events' => $totalOrganizerEvents,
+                    'total_admin_events' => $totalAdminEvents,
+                    'pending_approvals' => $pendingApprovals,
+                    'published_events' => $publishedEvents,
+                    'active_events' => $activeEvents,
+                    'completed_events' => $completedEvents,
+                    'total_participants' => $totalParticipants,
+                    'new_users_this_month' => $newUsersThisMonth,
+                    'new_events_this_month' => $newEventsThisMonth,
+                    'revenue_this_month' => $revenueThisMonth,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to get dashboard stats', [
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal memuat statistik dashboard: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get chart data for dashboard
+     */
+    public function getChartData(): JsonResponse
+    {
+        try {
+            // Events per month (last 6 months)
+            $eventsPerMonth = [];
+            for ($i = 5; $i >= 0; $i--) {
+                $month = now()->copy()->subMonths($i);
+                $count = Event::whereMonth('created_at', $month->month)
+                    ->whereYear('created_at', $month->year)
+                    ->count();
+                $eventsPerMonth[] = [
+                    'month' => $month->format('M Y'),
+                    'count' => $count
+                ];
+            }
+
+            // Participants per month (last 6 months)
+            $participantsPerMonth = [];
+            for ($i = 5; $i >= 0; $i--) {
+                $month = now()->copy()->subMonths($i);
+                $count = \DB::table('event_participant')
+                    ->whereMonth('created_at', $month->month)
+                    ->whereYear('created_at', $month->year)
+                    ->count();
+                $participantsPerMonth[] = [
+                    'month' => $month->format('M Y'),
+                    'count' => $count
+                ];
+            }
+
+            // Top events by participants - handle if no events exist
+            $topEventsQuery = Event::withCount('eventParticipants')
+                ->orderBy('event_participants_count', 'desc')
+                ->limit(5)
+                ->get();
+
+            $topEvents = $topEventsQuery->map(function ($event) {
+                return [
+                    'name' => $event->title ?? 'Untitled Event',
+                    'participants' => $event->event_participants_count ?? 0
+                ];
+            })->toArray();
+
+            \Log::info('Chart data generated successfully', [
+                'eventsPerMonth' => count($eventsPerMonth),
+                'participantsPerMonth' => count($participantsPerMonth),
+                'topEvents' => count($topEvents)
+            ]);
+
+            return response()->json([
+                'eventsPerMonth' => $eventsPerMonth,
+                'participantsPerMonth' => $participantsPerMonth,
+                'topEvents' => $topEvents
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to get chart data', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Return empty data instead of error to prevent dashboard crash
+            return response()->json([
+                'eventsPerMonth' => [],
+                'participantsPerMonth' => [],
+                'topEvents' => []
+            ]);
         }
     }
 }

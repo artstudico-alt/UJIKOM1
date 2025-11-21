@@ -17,8 +17,9 @@ class PasswordResetEmail extends Mailable
     public function __construct(User $user, $token)
     {
         $this->user = $user;
-        // Use named route to ensure URL matches web.php definition: /reset-password/{token}
-        $this->resetUrl = route('password.reset', ['token' => $token, 'email' => $user->email]);
+        // Generate frontend URL for password reset
+        $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+        $this->resetUrl = $frontendUrl . '/reset-password/' . $token . '?email=' . urlencode($user->email);
     }
 
     public function build()

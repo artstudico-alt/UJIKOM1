@@ -43,6 +43,7 @@ import {
   Star,
   EmojiEvents,
   MonetizationOn,
+  Lock,
 } from '@mui/icons-material';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -133,15 +134,16 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
           }
         }}
       >
-        <Container maxWidth="lg">
           <Toolbar
             sx={{
               justifyContent: 'space-between',
               py: scrolled ? 1.5 : 2,
               minHeight: scrolled ? 64 : 72,
-              px: { xs: 1, sm: 2 },
+              px: { xs: 2, sm: 3, md: 4 },
+              maxWidth: 'none',
             }}
           >
+            <Container maxWidth="lg" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 0 }}>
             {/* Logo */}
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Typography
@@ -432,8 +434,8 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
                 </IconButton>
               )}
             </Box>
+            </Container>
           </Toolbar>
-        </Container>
       </AppBar>
 
       {/* Profile Menu */}

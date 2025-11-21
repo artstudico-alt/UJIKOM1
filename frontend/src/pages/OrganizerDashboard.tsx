@@ -165,14 +165,14 @@ const OrganizerDashboard: React.FC = () => {
       setAllEvents(organizerEvents);
       
       // Convert to OrganizerEvent format for display
-      const convertedEvents: OrganizerEvent[] = organizerEvents.slice(0, 5).map(event => ({
-        id: typeof event.id === 'string' ? parseInt(event.id) : event.id,
-        name: event.name || event.title || '',
-        date: event.eventDate || event.date || '',
+      const convertedEvents = organizerEvents.map(event => ({
+        id: event.id,
+        name: event.title || '', // OrganizerEvent requires 'name' property
+        date: event.date || '',
         participants: event.currentParticipants || 0,
         maxParticipants: event.maxParticipants || 0,
         status: event.status as any, // Use original API status
-        revenue: (event.price || 0) * (event.currentParticipants || 0)
+        revenue: event.price || 0 // Show event price (ticket price), not calculated from participants
       }));
       
       setRecentEvents(convertedEvents);
@@ -183,9 +183,29 @@ const OrganizerDashboard: React.FC = () => {
       const upcomingEvents = organizerEvents.filter(event => 
         event.status === 'published' || event.status === 'pending_approval'
       ).length;
-      const totalRevenue = organizerEvents.reduce((sum, event) => 
-        sum + ((event.price || 0) * (event.currentParticipants || 0)), 0
+      
+      // Revenue calculation for EO Dashboard: Sum of all event prices (ticket prices)
+      // Only count from published/approved events (events that can generate revenue)
+      const publishedEvents = organizerEvents.filter(event => 
+        event.status === 'published' || event.status === 'approved'
       );
+      const totalRevenue = publishedEvents.reduce((sum, event) => 
+        sum + (event.price || 0), 0 // Sum of ticket prices, not multiplied by participants
+      );
+
+      console.log('💰 EO Revenue Calculation Debug:', {
+        totalEvents: organizerEvents.length,
+        publishedEvents: publishedEvents.length,
+        publishedEventsDetails: publishedEvents.map(e => ({
+          title: e.title,
+          status: e.status,
+          price: e.price,
+          participants: e.currentParticipants,
+          ticketPrice: e.price || 0
+        })),
+        totalRevenue: totalRevenue,
+        note: 'Revenue = sum of event ticket prices (not multiplied by participants)'
+      });
 
       setStats([
         { label: 'Total Events', value: totalEvents.toString(), icon: <EventIcon fontSize="large" color="primary" />, color: '#4f46e5' },

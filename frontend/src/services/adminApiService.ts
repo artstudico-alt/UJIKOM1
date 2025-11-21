@@ -42,16 +42,21 @@ export interface AdminEvent {
   start_time: string;
   end_time: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   max_participants?: number;
   registration_deadline: string;
   organizer_name: string;
   organizer_email: string;
   organizer_contact?: string;
   category: string;
+  event_type?: string;
   price?: number;
   registration_date: string;
   image?: string;
   image_url?: string;
+  has_certificate?: boolean;
+  certificate_required?: boolean;
   status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'cancelled';
   organizer_type?: 'admin' | 'organizer';
   is_active: boolean;
@@ -62,6 +67,14 @@ export interface AdminEvent {
   rejected_at?: string;
   rejection_reason?: string;
   participants_count?: number;
+  // Payment settings
+  payment_methods?: string[] | string;
+  bank_account_info?: {
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+  } | string;
+  payment_instructions?: string;
 }
 
 export interface AdminUser {
@@ -141,13 +154,29 @@ class AdminApiService {
   /**
    * Get pending events for approval
    */
-  async getPendingEvents(): Promise<AdminEvent[]> {
+  async getPendingEvents(limit?: number): Promise<AdminEvent[]> {
     try {
-      const response = await apiClient.get('/admin/events/pending?per_page=100');
-      return response.data.data || [];
-    } catch (error) {
-      console.error('Failed to fetch pending events:', error);
+      const perPage = limit || 100;
+      const response = await apiClient.get(`/admin/events/pending?per_page=${perPage}`);
+      
+      console.log('📡 adminApiService.getPendingEvents: Response received', {
+        status: response.data.status,
+        dataLength: response.data.data?.length,
+        total: response.data.meta?.total_pending
+      });
+      
+      if (response.data.status === 'success') {
+        return response.data.data || [];
+      }
+      
+      console.warn('⚠️ adminApiService.getPendingEvents: Unexpected status', response.data);
       return [];
+    } catch (error: any) {
+      console.error('❌ adminApiService.getPendingEvents: API call failed', {
+        message: error.message,
+        response: error.response?.data
+      });
+      throw error;
     }
   }
 
@@ -268,10 +297,14 @@ class AdminApiService {
   /**
    * Get event by ID
    */
-  async getEventById(eventId: number): Promise<AdminEvent> {
+  async getEventById(eventId: string | number): Promise<ApiResponse<AdminEvent>> {
     try {
-      const response = await apiClient.get(`/admin/events/${eventId}`);
-      return response.data.data;
+      const id = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+      const response = await apiClient.get(`/admin/events/${id}`);
+      return {
+        status: 'success',
+        data: response.data.data
+      };
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to fetch event');
     }
@@ -315,9 +348,10 @@ class AdminApiService {
   /**
    * Update event
    */
-  async updateEvent(eventId: number, eventData: Partial<AdminEvent>): Promise<ApiResponse<AdminEvent>> {
+  async updateEvent(eventId: string | number, eventData: Partial<AdminEvent>): Promise<ApiResponse<AdminEvent>> {
     try {
-      const response = await apiClient.put(`/admin/events/${eventId}`, eventData);
+      const id = typeof eventId === 'string' ? parseInt(eventId, 10) : eventId;
+      const response = await apiClient.put(`/admin/events/${id}`, eventData);
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to update event');

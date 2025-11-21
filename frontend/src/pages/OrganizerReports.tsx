@@ -25,7 +25,7 @@ import {
   Description as CsvIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { eventService, Event } from '../services/eventService';
+import { organizerApiService, OrganizerEvent } from '../services/organizerApiService';
 import { 
   exportToExcel, 
   exportToCSV, 
@@ -42,7 +42,7 @@ const OrganizerReports: React.FC = () => {
   });
   
   // State for events data
-  const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
+  const [organizerEvents, setOrganizerEvents] = useState<OrganizerEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -51,26 +51,23 @@ const OrganizerReports: React.FC = () => {
     loadOrganizerEvents();
   }, []);
 
-  const loadOrganizerEvents = () => {
+  const loadOrganizerEvents = async () => {
     setLoading(true);
     try {
-      // Get all events from localStorage
-      const allEvents = eventService.getAllEvents();
+      // Fetch events from API
+      const response = await organizerApiService.getEvents();
+      const events = response.data || [];
       
-      // Filter events for current organizer (excluding admin events)
-      const organizerEvents = allEvents.filter(event => 
-        event.organizerName && event.organizerName !== 'Admin Utama'
-      );
+      console.log('📊 Organizer Reports: Events loaded from API:', events.length);
+      console.log('🔍 Event details:', events);
       
-      setOrganizerEvents(organizerEvents);
-      
-      console.log('✅ Organizer Reports: Events loaded:', organizerEvents.length);
+      setOrganizerEvents(events);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to load organizer events:', error);
       setSnackbar({
         open: true,
-        message: 'Gagal memuat data events',
+        message: 'Gagal memuat data events: ' + (error.message || 'Unknown error'),
         severity: 'error'
       });
     } finally {
@@ -92,7 +89,30 @@ const OrganizerReports: React.FC = () => {
         return;
       }
 
-      const exportData = organizerEvents.map(convertEventToExportFormat);
+      // Convert OrganizerEvent to export format
+      const exportData = organizerEvents.map(event => ({
+        id: event.id || 0,
+        name: event.title,
+        title: event.title,
+        description: event.description,
+        date: event.date,
+        startTime: event.start_time,
+        endTime: event.end_time,
+        location: event.location,
+        maxParticipants: event.max_participants || 0,
+        currentParticipants: event.current_participants || 0,
+        registrationDate: event.registration_deadline,
+        price: event.price || 0,
+        status: event.status || 'draft',
+        category: event.category,
+        organizer: event.organizer_name,
+        organizerEmail: event.organizer_email,
+        organizerContact: event.organizer_contact || '',
+        createdAt: event.created_at || '',
+        approvedAt: event.approved_at || '',
+        submittedAt: event.submitted_at || ''
+      }));
+      
       const filename = getFormattedFilename('My_Events_Report');
 
       if (format === 'xlsx') {
@@ -128,7 +148,12 @@ const OrganizerReports: React.FC = () => {
   };
 
   // Calculate statistics
-  const stats = calculateEventStats(organizerEvents);
+  const stats = {
+    totalEvents: organizerEvents.length,
+    totalParticipants: organizerEvents.reduce((sum, event) => sum + (event.current_participants || 0), 0),
+    publishedEvents: organizerEvents.filter(e => e.status === 'published' || e.status === 'approved').length,
+    totalRevenue: organizerEvents.reduce((sum, event) => sum + ((event.price || 0) * (event.current_participants || 0)), 0)
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc', py: 4 }}>

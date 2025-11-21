@@ -43,6 +43,10 @@ class Event extends Model
         'rejected_at',
         'approved_by',
         'rejection_reason',
+        // Payment settings
+        'payment_methods',
+        'bank_account_info',
+        'payment_instructions',
     ];
 
     protected $casts = [
@@ -61,6 +65,9 @@ class Event extends Model
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
+        // Payment settings casts
+        'payment_methods' => 'array',
+        'bank_account_info' => 'array',
     ];
 
     protected $appends = [
@@ -139,22 +146,22 @@ class Event extends Model
     // Accessors
     public function getIsRegistrationOpenAttribute()
     {
-        // If registration deadline is null, assume registration is closed
-        if (!$this->registration_deadline) {
-            return false;
-        }
-
-        // Check if registration deadline has passed
-        if (now()->gt($this->registration_deadline)) {
-            return false;
-        }
-
-        // Check if event has already started
+        // PRIORITY 1: Check if event has already started (registration closes when event starts)
         $date = $this->date instanceof Carbon ? $this->date->format('Y-m-d') : $this->date;
         $time = $this->start_time instanceof Carbon ? $this->start_time->format('H:i:s') : $this->start_time;
         $eventDateTime = Carbon::parse($date . ' ' . $time);
         if ($eventDateTime->isPast()) {
             return false;
+        }
+
+        // PRIORITY 2: Check if registration deadline has passed
+        // If registration deadline is null, assume registration is open (will close when event starts)
+        if ($this->registration_deadline) {
+            // Set deadline to end of day (23:59:59) to allow registration until end of deadline date
+            $deadlineDate = Carbon::parse($this->registration_deadline)->endOfDay();
+            if (now()->gt($deadlineDate)) {
+                return false;
+            }
         }
 
         return true;

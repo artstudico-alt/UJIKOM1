@@ -54,7 +54,12 @@ class EventResource extends JsonResource
             'organizer_email' => $this->organizer_email,
             'organizer_contact' => $this->organizer_contact,
             'category' => $this->category,
+            'event_type' => $this->event_type ?? $this->category, // Fallback to category if event_type not set
             'price' => $this->price ? (float) $this->price : 0,
+            // Payment settings
+            'payment_methods' => $this->payment_methods,
+            'bank_account_info' => $this->bank_account_info,
+            'payment_instructions' => $this->payment_instructions,
             'registration_date' => $this->registration_date ? $this->registration_date->format('Y-m-d H:i:s') : null,
             'submitted_at' => $this->submitted_at ? $this->submitted_at->format('Y-m-d H:i:s') : null,
             'approved_at' => $this->approved_at ? $this->approved_at->format('Y-m-d H:i:s') : null,
