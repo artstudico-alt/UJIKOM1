@@ -21,12 +21,12 @@ import EventForm from './components/events/EventForm';
 import MyEvents from './components/events/MyEvents';
 import EventRegistration from './pages/EventRegistration';
 import RegistrationSuccess from './components/events/RegistrationSuccess';
-import MyCertificates from './components/certificates/MyCertificates';
+import MyCertificates from './pages/MyCertificates';
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminDebug from './components/debug/AdminDebug';
 import UserManagement from './components/admin/UserManagement';
-import Participants from './components/admin/Participants';
+import Participants from './pages/Participants';
 import Certificates from './components/admin/Certificates';
 import Reports from './components/admin/Reports';
 import Settings from './components/admin/Settings';
@@ -40,6 +40,7 @@ import ResetPasswordForm from './components/auth/ResetPasswordForm';
 import CertificateSearch from './components/certificates/CertificateSearch';
 import CertificateManagement from './components/admin/CertificateManagement';
 import CertificateBuilder from './components/admin/CertificateBuilder';
+import AdminCertificateManagement from './pages/AdminCertificateManagement';
 import LoadingDemo from './pages/LoadingDemo';
 import Attendance from './pages/Attendance';
 import Notifications from './pages/Notifications';
@@ -653,7 +654,7 @@ const AppRoutes: React.FC = () => {
           element={
             <AdminRoute>
               <AdminLayout>
-                <CertificateManagement />
+                <AdminCertificateManagement />
               </AdminLayout>
             </AdminRoute>
           }

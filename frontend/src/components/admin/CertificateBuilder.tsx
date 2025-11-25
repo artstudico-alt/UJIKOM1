@@ -42,6 +42,8 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { eventService } from '../../services/api';
+import certificateService from '../../services/certificateService';
+import adminApiService from '../../services/adminApiService';
 
 interface CertificateTemplate {
   id: number;
@@ -78,15 +80,12 @@ const CertificateBuilder: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<number | ''>('');
-  const [template, setTemplate] = useState<CertificateTemplate | null>(null);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templateImage, setTemplateImage] = useState<HTMLImageElement | null>(null);
   const [organizerName, setOrganizerName] = useState('');
-  const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
   const [elements, setElements] = useState<CertificateElement[]>([]);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
-  const [showParticipantDialog, setShowParticipantDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [hoveredElement, setHoveredElement] = useState<string | null>(null);
@@ -95,21 +94,19 @@ const CertificateBuilder: React.FC = () => {
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  // Fetch events with certificates
+  // Fetch events with certificates (only events that has_certificate = 1)
   const { data: eventsData, isLoading: eventsLoading } = useQuery({
-    queryKey: ['events-with-certificates'],
-    queryFn: () => eventService.getEventsWithCertificates(),
-  });
-
-  // Fetch participants for selected event
-  const { data: participantsData, isLoading: participantsLoading } = useQuery({
-    queryKey: ['event-participants', selectedEvent],
-    queryFn: () => eventService.getEventParticipants(selectedEvent as number),
-    enabled: !!selectedEvent,
+    queryKey: ['admin-events-with-certificates'],
+    queryFn: async () => {
+      // Get all events and filter only those with has_certificate = true
+      const response = await adminApiService.getAllEvents();
+      return {
+        data: response.data.filter((event: any) => event.has_certificate === 1 || event.has_certificate === true)
+      };
+    },
   });
 
   const events = eventsData?.data || [];
-  const participants = participantsData?.data || [];
 
   // Initialize canvas
   useEffect(() => {
@@ -241,23 +238,38 @@ const CertificateBuilder: React.FC = () => {
     drawElements();
   }, [elements, templateImage, selectedElement, hoveredElement]);
 
-  const handleTemplateUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTemplateUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    if (!selectedEvent) {
+      alert('Pilih event terlebih dahulu');
+      return;
+    }
+
+    try {
       setTemplateFile(file);
-      // Load template image
+      
+      // Upload template to server
+      await certificateService.uploadTemplate(selectedEvent as number, file, true);
+      
+      // Load template image for preview
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          // Store template image for redrawing
           setTemplateImage(img);
-          // Redraw canvas with template and elements
           drawElements();
         };
         img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
+
+      alert('Template berhasil diupload!');
+    } catch (error: any) {
+      console.error('Error uploading template:', error);
+      alert('Gagal upload template: ' + (error.response?.data?.message || error.message));
+      setTemplateFile(null);
     }
   };
 
@@ -422,13 +434,6 @@ const CertificateBuilder: React.FC = () => {
     }
   };
 
-  const handleParticipantSelect = (participant: Participant) => {
-    if (selectedParticipants.find(p => p.id === participant.id)) {
-      setSelectedParticipants(selectedParticipants.filter(p => p.id !== participant.id));
-    } else {
-      setSelectedParticipants([...selectedParticipants, participant]);
-    }
-  };
 
   const clearTemplate = () => {
     setTemplateFile(null);
@@ -445,41 +450,34 @@ const CertificateBuilder: React.FC = () => {
   };
 
   const generateCertificates = async () => {
-    if (!selectedEvent || selectedParticipants.length === 0) {
-      alert('Pilih event dan peserta terlebih dahulu');
+    if (!selectedEvent) {
+      alert('Pilih event terlebih dahulu');
       return;
     }
 
-    if (!organizerName.trim()) {
-      alert('Masukkan nama penyelenggara');
+    if (!templateImage) {
+      alert('Upload template terlebih dahulu');
       return;
     }
 
     try {
       setGenerating(true);
       
-      const response = await eventService.generateCertificates({
-        event_id: selectedEvent,
-        participant_ids: selectedParticipants.map(p => p.id),
-        organizer_name: organizerName,
-        template_data: {
-          elements: elements,
-          canvas_width: canvasRef.current?.width || 800,
-          canvas_height: canvasRef.current?.height || 600,
-        }
-      });
+      // Generate certificates for all attendees automatically
+      const response = await certificateService.generateCertificatesForEvent(selectedEvent as number);
 
       if (response.status === 'success') {
-        alert(`Berhasil generate ${response.data.generated_count} sertifikat! Sertifikat telah dikirim ke email peserta.`);
+        alert(`Berhasil generate ${response.data.generated} sertifikat untuk semua peserta yang hadir!`);
         
         // Reset form
         setSelectedEvent('');
-        setSelectedParticipants([]);
         setOrganizerName('');
         setElements([]);
         setTemplateImage(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+        setTemplateFile(null);
+        const fileInput = document.getElementById('template-upload') as HTMLInputElement;
+        if (fileInput) {
+          fileInput.value = '';
         }
       } else {
         alert('Gagal generate sertifikat: ' + response.message);
@@ -511,7 +509,7 @@ const CertificateBuilder: React.FC = () => {
                   Event & Template
                 </Typography>
 
-                {/* Event Selection */}
+                {/* Event Selection - Only show events with certificates */}
                 <FormControl fullWidth sx={{ mb: 2 }}>
                   <InputLabel>Pilih Event</InputLabel>
                   <Select
@@ -519,13 +517,24 @@ const CertificateBuilder: React.FC = () => {
                     onChange={(e) => setSelectedEvent(e.target.value as number)}
                     disabled={eventsLoading}
                   >
-                    {events.map((event) => (
-                      <MenuItem key={event.id} value={event.id}>
-                        {event.title}
-                      </MenuItem>
-                    ))}
+                    {eventsLoading ? (
+                      <MenuItem disabled>Loading...</MenuItem>
+                    ) : events.length === 0 ? (
+                      <MenuItem disabled>Tidak ada event dengan sertifikat</MenuItem>
+                    ) : (
+                      events.map((event: any) => (
+                        <MenuItem key={event.id} value={event.id}>
+                          {event.title} - {new Date(event.date).toLocaleDateString('id-ID')}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="caption">
+                    Hanya menampilkan event yang menggunakan sertifikat
+                  </Typography>
+                </Alert>
 
                 {/* Template Upload */}
                 <Box sx={{ mb: 2 }}>
@@ -566,14 +575,17 @@ const CertificateBuilder: React.FC = () => {
                   )}
                 </Box>
 
-                {/* Organizer Name */}
-                <TextField
-                  fullWidth
-                  label="Nama Penyelenggara"
-                  value={organizerName}
-                  onChange={(e) => setOrganizerName(e.target.value)}
-                  sx={{ mb: 2 }}
-                />
+                {/* Info about selected event */}
+                {selectedEvent && (
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    <Typography variant="caption" display="block">
+                      <strong>Event dipilih!</strong>
+                    </Typography>
+                    <Typography variant="caption">
+                      Sertifikat akan di-generate untuk <strong>semua peserta yang hadir</strong>
+                    </Typography>
+                  </Alert>
+                )}
 
                 <Divider sx={{ my: 2 }} />
 
@@ -684,47 +696,17 @@ const CertificateBuilder: React.FC = () => {
 
                 <Divider sx={{ my: 2 }} />
 
-                {/* Participant Selection */}
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="subtitle2">
-                      Peserta Terpilih ({selectedParticipants.length})
-                    </Typography>
-                    <Button
-                      size="small"
-                      onClick={() => setShowParticipantDialog(true)}
-                      disabled={!selectedEvent}
-                    >
-                      Pilih Peserta
-                    </Button>
-                  </Box>
-
-                  {selectedParticipants.length > 0 ? (
-                    <List dense>
-                      {selectedParticipants.map((participant) => (
-                        <ListItem key={participant.id} sx={{ px: 0 }}>
-                          <ListItemText
-                            primary={participant.name}
-                            secondary={participant.registration_number}
-                          />
-                          <ListItemSecondaryAction>
-                            <IconButton
-                              edge="end"
-                              onClick={() => handleParticipantSelect(participant)}
-                              size="small"
-                            >
-                              <Delete />
-                            </IconButton>
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Belum ada peserta terpilih
-                    </Typography>
-                  )}
-                </Box>
+                {/* Info - Auto Generate */}
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2" fontWeight="bold" gutterBottom>
+                    Generate Otomatis
+                  </Typography>
+                  <Typography variant="caption" component="div">
+                    • Sertifikat akan di-generate untuk <strong>semua peserta yang hadir</strong><br />
+                    • Data peserta diambil dari registrasi event<br />
+                    • Tidak perlu pilih peserta manual
+                  </Typography>
+                </Alert>
 
                 <Divider sx={{ my: 2 }} />
 
@@ -734,7 +716,7 @@ const CertificateBuilder: React.FC = () => {
                     variant="contained"
                     startIcon={generating ? <CircularProgress size={20} color="inherit" /> : <Save />}
                     onClick={generateCertificates}
-                    disabled={!selectedEvent || selectedParticipants.length === 0 || generating}
+                    disabled={!selectedEvent || !templateImage || generating}
                     fullWidth
                     sx={{ 
                       color: 'white',
@@ -743,7 +725,7 @@ const CertificateBuilder: React.FC = () => {
                       }
                     }}
                   >
-                    {generating ? 'Generating...' : 'Generate Sertifikat'}
+                    {generating ? 'Generating...' : 'Generate Semua Sertifikat'}
                   </Button>
                   <Button
                     variant="outlined"
@@ -795,62 +777,6 @@ const CertificateBuilder: React.FC = () => {
           </Box>
         </Box>
 
-        {/* Participant Selection Dialog */}
-        <Dialog
-          open={showParticipantDialog}
-          onClose={() => setShowParticipantDialog(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>Pilih Peserta</DialogTitle>
-          <DialogContent>
-            {participantsLoading ? (
-              <Box display="flex" justifyContent="center" p={3}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <List>
-                {participants.map((participant) => (
-                  <ListItem
-                    key={participant.id}
-                    onClick={() => handleParticipantSelect(participant)}
-                    sx={{ 
-                      cursor: 'pointer',
-                      '&:hover': { backgroundColor: 'action.hover' },
-                      backgroundColor: selectedParticipants.some(p => p.id === participant.id) ? 'action.selected' : 'transparent'
-                    }}
-                  >
-                    <ListItemText
-                      primary={participant.name}
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">
-                            {participant.email}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {participant.registration_number} • {participant.attendance_status}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    <ListItemSecondaryAction>
-                      <Chip
-                        label={participant.attendance_status}
-                        color={participant.attendance_status === 'present' ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setShowParticipantDialog(false)}>
-              Tutup
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Box>
     </Container>
   );

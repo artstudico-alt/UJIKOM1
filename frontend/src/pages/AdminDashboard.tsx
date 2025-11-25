@@ -67,6 +67,9 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   
+  // Ref to prevent concurrent loading
+  const isLoadingRef = React.useRef(false);
+  
   // State declarations
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     total_users: 0,
@@ -150,11 +153,14 @@ const AdminDashboard: React.FC = () => {
       loadDashboardData();
     }, 300);
     
-    // Auto-refresh setiap 10 detik
+    // Auto-refresh setiap 60 detik (reduced from 10s to prevent flickering)
     const refreshInterval = setInterval(() => {
-      console.log('⏰ Admin Dashboard: Auto-refresh...');
-      loadDashboardData();
-    }, 10000);
+      console.log('⏰ Admin Dashboard: Auto-refresh (60s interval)...');
+      // Only refresh if not currently loading to prevent state conflicts
+      if (!document.hidden) {
+        loadDashboardData();
+      }
+    }, 60000);
     
     // Listen for custom events - IMMEDIATE refresh
     const handleEventCreated = () => {
@@ -186,6 +192,13 @@ const AdminDashboard: React.FC = () => {
   }, [isAuthenticated, authLoading, user]);
 
   const loadDashboardData = async () => {
+    // Prevent concurrent loading using ref for immediate check
+    if (isLoadingRef.current) {
+      console.log('⚠️ Already loading, skipping...');
+      return;
+    }
+    
+    isLoadingRef.current = true;
     setLoading(true);
     try {
       console.log('🔍 Admin Dashboard: Starting to load data...');
@@ -286,10 +299,15 @@ const AdminDashboard: React.FC = () => {
         console.log('📊 Admin Dashboard: Loading chart data...');
         const charts = await adminApiService.getChartData();
         console.log('✅ Admin Dashboard: Chart data loaded:', charts);
-        setChartData(charts);
+        // Only update chart data if we got valid data
+        if (charts && charts.eventsPerMonth) {
+          setChartData(charts);
+        } else {
+          console.warn('⚠️ Chart data is empty, keeping previous data');
+        }
       } catch (chartError) {
         console.error('❌ Admin Dashboard: Chart data API failed:', chartError);
-        // Keep default empty chart data
+        // Keep existing chart data on error (don't reset to empty)
       }
       
       console.log('🔍 Admin Dashboard: Final loaded data:', {
@@ -307,6 +325,7 @@ const AdminDashboard: React.FC = () => {
       });
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   };
 
@@ -878,13 +897,27 @@ const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Dashboard Charts */}
-        {chartData && chartData.eventsPerMonth && (
-          <DashboardCharts
-            eventsPerMonth={chartData.eventsPerMonth}
-            participantsPerMonth={chartData.participantsPerMonth}
-            topEvents={chartData.topEvents}
-          />
+        {/* Dashboard Charts - Always show if data exists, even during refresh */}
+        {chartData && chartData.eventsPerMonth && chartData.eventsPerMonth.length > 0 && (
+          <Box sx={{ position: 'relative' }}>
+            {loading && (
+              <LinearProgress 
+                sx={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  zIndex: 1,
+                  borderRadius: '4px 4px 0 0'
+                }} 
+              />
+            )}
+            <DashboardCharts
+              eventsPerMonth={chartData.eventsPerMonth}
+              participantsPerMonth={chartData.participantsPerMonth}
+              topEvents={chartData.topEvents}
+            />
+          </Box>
         )}
 
         {/* Actions Menu */}

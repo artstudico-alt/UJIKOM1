@@ -106,6 +106,8 @@ const OrganizerParticipants: React.FC = () => {
   const fetchParticipants = async (eventId: number) => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching participants for event ID:', eventId);
+      
       const response = await fetch(`http://localhost:8000/api/organizer/events/${eventId}/participants`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
@@ -113,11 +115,21 @@ const OrganizerParticipants: React.FC = () => {
         }
       });
       const data = await response.json();
+      
+      console.log('📊 Participants API Response:', data);
+      
       if (data.status === 'success') {
-        setParticipants(data.data || []);
+        const participantData = data.data || [];
+        console.log('✅ Participants loaded:', participantData.length);
+        console.log('📋 Participant data sample:', participantData[0]);
+        setParticipants(participantData);
+      } else {
+        console.error('❌ Failed to fetch participants:', data.message);
+        setParticipants([]);
       }
     } catch (error) {
-      console.error('Error fetching participants:', error);
+      console.error('❌ Error fetching participants:', error);
+      setParticipants([]);
     } finally {
       setLoading(false);
     }
@@ -125,46 +137,39 @@ const OrganizerParticipants: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'approved': return 'success';
+      case 'pending': return 'warning';
       case 'registered': return 'primary';
       case 'attended': return 'success';
-      case 'cancelled': return 'error';
-      case 'no_show': return 'warning';
-      default: return 'default';
+      default: return 'primary';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
+      case 'approved': return 'Disetujui';
+      case 'pending': return 'Menunggu';
       case 'registered': return 'Terdaftar';
       case 'attended': return 'Hadir';
-      case 'cancelled': return 'Dibatalkan';
-      case 'no_show': return 'Tidak Hadir';
-      default: return status;
+      default: return 'Terdaftar';
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'paid': return 'success';
-      case 'refunded': return 'error';
-      default: return 'default';
-    }
-  };
-
-  const getPaymentStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Menunggu';
-      case 'paid': return 'Lunas';
-      case 'refunded': return 'Dikembalikan';
-      default: return status;
-    }
-  };
+  // Remove unused payment status functions
 
   const filteredParticipants = participants.filter(participant => {
     const matchesSearch = participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          participant.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || participant.attendance_status === statusFilter;
+    
+    // Filter by verification status
+    let matchesStatus = true;
+    if (statusFilter === 'verified') {
+      matchesStatus = participant.is_attendance_verified === true;
+    } else if (statusFilter === 'unverified') {
+      matchesStatus = participant.is_attendance_verified === false;
+    }
+    // 'all' matches everything
+    
     return matchesSearch && matchesStatus;
   });
 
@@ -213,9 +218,9 @@ const OrganizerParticipants: React.FC = () => {
 
   // Statistics
   const totalParticipants = participants.length;
-  const attendedParticipants = participants.filter(p => p.is_attendance_verified).length;
-  const registeredParticipants = participants.filter(p => p.attendance_status === 'pending').length;
-  const attendanceRate = totalParticipants > 0 ? (attendedParticipants / totalParticipants) * 100 : 0;
+  const verifiedParticipants = participants.filter(p => p.is_attendance_verified === true).length;
+  const unverifiedParticipants = participants.filter(p => p.is_attendance_verified === false).length;
+  const verificationRate = totalParticipants > 0 ? (verifiedParticipants / totalParticipants) * 100 : 0;
 
   return (
     <Box sx={{ minHeight: '100vh', background: '#f8f9fa', py: 4 }}>
@@ -280,55 +285,61 @@ const OrganizerParticipants: React.FC = () => {
                 </Avatar>
                 <Box>
                   <Typography variant="h5" fontWeight="bold" color="#10b981">
-                    {attendedParticipants}
+                    {verifiedParticipants}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Hadir
+                    Terverifikasi
                   </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-
-            <Card sx={{ borderRadius: 2, border: '2px solid #06b6d420' }}>
-              <CardContent sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-                <Avatar sx={{ bgcolor: '#06b6d415', color: '#06b6d4', mr: 2 }}>
-                  <EventIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h5" fontWeight="bold" color="#06b6d4">
-                    {registeredParticipants}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Terdaftar
+                  <Typography variant="caption" sx={{ color: '#10b981', display: 'block', mt: 0.5 }}>
+                    ✓ Dapat Sertifikat
                   </Typography>
                 </Box>
               </CardContent>
             </Card>
 
             <Card sx={{ borderRadius: 2, border: '2px solid #f59e0b20' }}>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
+                <Avatar sx={{ bgcolor: '#f59e0b15', color: '#f59e0b', mr: 2 }}>
+                  <EventIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" fontWeight="bold" color="#f59e0b">
+                    {unverifiedParticipants}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Belum Terverifikasi
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#f59e0b', display: 'block', mt: 0.5 }}>
+                    ✗ Belum Dapat Sertifikat
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+
+            <Card sx={{ borderRadius: 2, border: '2px solid #4f46e520' }}>
               <CardContent sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Avatar sx={{ bgcolor: '#f59e0b15', color: '#f59e0b', mr: 2 }}>
+                  <Avatar sx={{ bgcolor: '#4f46e515', color: '#4f46e5', mr: 2 }}>
                     <TrendingUpIcon />
                   </Avatar>
                   <Box>
-                    <Typography variant="h5" fontWeight="bold" color="#f59e0b">
-                      {attendanceRate.toFixed(1)}%
+                    <Typography variant="h5" fontWeight="bold" color="#4f46e5">
+                      {verificationRate.toFixed(1)}%
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Tingkat Kehadiran
+                      Tingkat Verifikasi
                     </Typography>
                   </Box>
                 </Box>
                 <LinearProgress 
                   variant="determinate" 
-                  value={attendanceRate}
+                  value={verificationRate}
                   sx={{ 
                     height: 6, 
                     borderRadius: 3,
-                    bgcolor: '#f59e0b20',
+                    bgcolor: '#4f46e520',
                     '& .MuiLinearProgress-bar': {
-                      bgcolor: '#f59e0b'
+                      bgcolor: '#4f46e5'
                     }
                   }}
                 />
@@ -362,18 +373,26 @@ const OrganizerParticipants: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Status Verifikasi</InputLabel>
               <Select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                label="Status"
+                label="Status Verifikasi"
               >
                 <MenuItem value="all">Semua Status</MenuItem>
-                <MenuItem value="registered">Terdaftar</MenuItem>
-                <MenuItem value="attended">Hadir</MenuItem>
-                <MenuItem value="cancelled">Dibatalkan</MenuItem>
-                <MenuItem value="no_show">Tidak Hadir</MenuItem>
+                <MenuItem value="verified">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CheckCircleIcon sx={{ fontSize: 18, color: '#10b981' }} />
+                    Terverifikasi
+                  </Box>
+                </MenuItem>
+                <MenuItem value="unverified">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CancelIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+                    Belum Terverifikasi
+                  </Box>
+                </MenuItem>
               </Select>
             </FormControl>
           </Box>
@@ -381,9 +400,37 @@ const OrganizerParticipants: React.FC = () => {
 
         {/* Participants Table */}
         <Paper sx={{ p: 4, borderRadius: 3, background: 'white' }}>
-          <Typography variant="h5" fontWeight="bold" sx={{ mb: 3 }}>
+          <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>
             Daftar Peserta ({filteredParticipants.length})
           </Typography>
+          
+          {/* Info Alert about Verification */}
+          <Box sx={{ 
+            bgcolor: '#eff6ff', 
+            border: '1px solid #bfdbfe',
+            borderRadius: 2, 
+            p: 2, 
+            mb: 3,
+            display: 'flex',
+            gap: 2,
+            alignItems: 'flex-start'
+          }}>
+            <Box sx={{ color: '#3b82f6', fontSize: '1.25rem' }}>ℹ️</Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle2" fontWeight="bold" color="#1e40af" gutterBottom>
+                Tentang Status Verifikasi & Sertifikat
+              </Typography>
+              <Typography variant="body2" color="#1e3a8a">
+                <strong>• Terverifikasi:</strong> Peserta yang sudah <strong>daftar hadir</strong> pada event. Mereka <strong style={{ color: '#10b981' }}>dapat menerima sertifikat</strong>.
+              </Typography>
+              <Typography variant="body2" color="#1e3a8a">
+                <strong>• Belum Terverifikasi:</strong> Peserta yang sudah <strong>mendaftar event</strong> tapi <strong>belum hadir</strong>. Mereka <strong style={{ color: '#f59e0b' }}>tidak dapat menerima sertifikat</strong>.
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#1e40af', display: 'block', mt: 1 }}>
+                💡 Hanya peserta yang <strong>terverifikasi (sudah hadir)</strong> yang memenuhi syarat untuk mendapatkan sertifikat.
+              </Typography>
+            </Box>
+          </Box>
           
           {loading ? (
             <Box sx={{ textAlign: 'center', py: 8 }}>
@@ -426,10 +473,9 @@ const OrganizerParticipants: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell><strong>Peserta</strong></TableCell>
-                    <TableCell><strong>Event</strong></TableCell>
+                    <TableCell><strong>No. Registrasi</strong></TableCell>
                     <TableCell><strong>Tanggal Daftar</strong></TableCell>
-                    <TableCell><strong>Status</strong></TableCell>
-                    <TableCell><strong>Kehadiran</strong></TableCell>
+                    <TableCell><strong>Status Verifikasi</strong></TableCell>
                     <TableCell><strong>Sertifikat</strong></TableCell>
                     <TableCell><strong>Aksi</strong></TableCell>
                   </TableRow>
@@ -447,30 +493,54 @@ const OrganizerParticipants: React.FC = () => {
                           <Typography variant="caption" color="text.secondary">
                             {participant.email}
                           </Typography>
+                          <Typography variant="caption" sx={{ display: 'block', color: '#6b7280' }}>
+                            📱 {participant.phone || '-'}
+                          </Typography>
                         </Box>
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography fontWeight="medium">
-                        {events.find(e => e.id?.toString() === selectedEventId)?.title || '-'}
+                      <Typography variant="body2" fontWeight="medium" sx={{ 
+                        fontFamily: 'monospace',
+                        color: '#4f46e5',
+                        bgcolor: '#eef2ff',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        display: 'inline-block'
+                      }}>
+                        {participant.registration_number}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {new Date(participant.registration_date).toLocaleDateString('id-ID')}
+                      <Typography variant="body2">
+                        {new Date(participant.registration_date).toLocaleDateString('id-ID', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(participant.registration_date).toLocaleTimeString('id-ID', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={getStatusText(participant.attendance_status)} 
-                        color={getStatusColor(participant.attendance_status) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={participant.is_attendance_verified ? 'Hadir' : 'Belum Hadir'} 
-                        color={participant.is_attendance_verified ? 'success' : 'warning'}
-                        size="small"
-                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip 
+                          icon={participant.is_attendance_verified ? <CheckCircleIcon /> : <CancelIcon />}
+                          label={participant.is_attendance_verified ? 'Terverifikasi' : 'Belum Terverifikasi'} 
+                          color={participant.is_attendance_verified ? 'success' : 'warning'}
+                          size="small"
+                        />
+                        {participant.is_attendance_verified && (
+                          <Typography variant="caption" sx={{ color: '#10b981' }}>
+                            (Dapat Sertifikat)
+                          </Typography>
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Chip 
@@ -492,18 +562,10 @@ const OrganizerParticipants: React.FC = () => {
                           size="small" 
                           onClick={() => window.open(`mailto:${participant.email}`)}
                           sx={{ color: '#10b981' }}
+                          title="Kirim Email"
                         >
                           <EmailIcon />
                         </IconButton>
-                        {participant.attendance_status === 'pending' && (
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleUpdateStatus(participant.id, 'attended')}
-                            sx={{ color: '#10b981' }}
-                          >
-                            <CheckCircleIcon />
-                          </IconButton>
-                        )}
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -541,6 +603,12 @@ const OrganizerParticipants: React.FC = () => {
                   <Typography>{selectedParticipant.phone}</Typography>
                 </Box>
                 <Box>
+                  <Typography variant="subtitle2" color="text.secondary">No. Registrasi</Typography>
+                  <Typography fontWeight="bold" sx={{ fontFamily: 'monospace', color: '#4f46e5' }}>
+                    {selectedParticipant.registration_number}
+                  </Typography>
+                </Box>
+                <Box>
                   <Typography variant="subtitle2" color="text.secondary">Event</Typography>
                   <Typography>
                     {events.find(e => e.id?.toString() === selectedEventId)?.title || '-'}
@@ -549,21 +617,20 @@ const OrganizerParticipants: React.FC = () => {
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">Tanggal Pendaftaran</Typography>
                   <Typography>
-                    {new Date(selectedParticipant.registration_date).toLocaleDateString('id-ID')}
+                    {new Date(selectedParticipant.registration_date).toLocaleDateString('id-ID', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </Typography>
                 </Box>
                 <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Status Kehadiran</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">Status Verifikasi</Typography>
                   <Chip 
-                    label={getStatusText(selectedParticipant.attendance_status)} 
-                    color={getStatusColor(selectedParticipant.attendance_status) as any}
-                    size="small"
-                  />
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Kehadiran</Typography>
-                  <Chip 
-                    label={selectedParticipant.is_attendance_verified ? 'Sudah Hadir' : 'Belum Hadir'} 
+                    icon={selectedParticipant.is_attendance_verified ? <CheckCircleIcon /> : <CancelIcon />}
+                    label={selectedParticipant.is_attendance_verified ? 'Terverifikasi (Sudah Hadir)' : 'Belum Terverifikasi (Belum Hadir)'} 
                     color={selectedParticipant.is_attendance_verified ? 'success' : 'warning'}
                     size="small"
                   />
@@ -575,6 +642,16 @@ const OrganizerParticipants: React.FC = () => {
                     color={selectedParticipant.has_certificate ? 'success' : 'default'}
                     size="small"
                   />
+                  {!selectedParticipant.is_attendance_verified && (
+                    <Typography variant="caption" sx={{ color: '#f59e0b', display: 'block', mt: 1 }}>
+                      ⚠️ Peserta harus terverifikasi (hadir) untuk mendapatkan sertifikat
+                    </Typography>
+                  )}
+                  {selectedParticipant.is_attendance_verified && !selectedParticipant.has_certificate && (
+                    <Typography variant="caption" sx={{ color: '#10b981', display: 'block', mt: 1 }}>
+                      ✓ Peserta memenuhi syarat untuk menerima sertifikat
+                    </Typography>
+                  )}
                 </Box>
               </Box>
             </Box>

@@ -689,4 +689,132 @@ class AdminEventApprovalController extends Controller
             ]);
         }
     }
+
+    /**
+     * Get all participants across all events (Admin)
+     */
+    public function getAllParticipants(Request $request): JsonResponse
+    {
+        try {
+            $query = \App\Models\EventParticipant::with(['participant:id,name,email,phone', 'event:id,title,date']);
+
+            // Filter by event if provided
+            if ($request->has('event_id') && $request->event_id) {
+                $query->where('event_id', $request->event_id);
+            }
+
+            // Filter by verification status
+            if ($request->has('verification_status')) {
+                if ($request->verification_status === 'verified') {
+                    $query->where('is_attendance_verified', true);
+                } elseif ($request->verification_status === 'unverified') {
+                    $query->where('is_attendance_verified', false);
+                }
+            }
+
+            // Search by name or email
+            if ($request->has('search') && $request->search) {
+                $search = $request->search;
+                $query->whereHas('participant', function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+
+            $participants = $query->latest()
+                ->get()
+                ->map(function ($participant) {
+                    return [
+                        'id' => $participant->id,
+                        'user_id' => $participant->participant_id,
+                        'name' => $participant->participant->name ?? 'N/A',
+                        'email' => $participant->participant->email ?? 'N/A',
+                        'phone' => $participant->participant->phone ?? 'N/A',
+                        'event_title' => $participant->event->title ?? 'N/A',
+                        'event_date' => $participant->event->date ?? null,
+                        'registration_number' => $participant->registration_number,
+                        'registration_date' => $participant->created_at->format('Y-m-d H:i:s'),
+                        'attendance_status' => $participant->attendance_status ?? 'pending',
+                        'is_attendance_verified' => $participant->is_attendance_verified,
+                        'has_certificate' => $participant->has_received_certificate
+                    ];
+                });
+
+            \Log::info('Admin getAllParticipants success', [
+                'total' => $participants->count(),
+                'event_id' => $request->event_id,
+                'verification_status' => $request->verification_status
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $participants
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to get all participants (admin)', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch participants: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get participants for a specific event (Admin)
+     */
+    public function getEventParticipants($eventId): JsonResponse
+    {
+        try {
+            $event = Event::findOrFail($eventId);
+
+            $participants = \App\Models\EventParticipant::where('event_id', $eventId)
+                ->with('participant:id,name,email,phone')
+                ->get()
+                ->map(function ($participant) {
+                    return [
+                        'id' => $participant->id,
+                        'user_id' => $participant->participant_id,
+                        'name' => $participant->participant->name ?? 'N/A',
+                        'email' => $participant->participant->email ?? 'N/A',
+                        'phone' => $participant->participant->phone ?? 'N/A',
+                        'registration_number' => $participant->registration_number,
+                        'registration_date' => $participant->created_at->format('Y-m-d H:i:s'),
+                        'attendance_status' => $participant->attendance_status ?? 'pending',
+                        'is_attendance_verified' => $participant->is_attendance_verified,
+                        'has_certificate' => $participant->has_received_certificate
+                    ];
+                });
+
+            \Log::info('Admin getEventParticipants success', [
+                'event_id' => $eventId,
+                'total' => $participants->count()
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $participants,
+                'event' => [
+                    'id' => $event->id,
+                    'title' => $event->title,
+                    'date' => $event->date
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to get event participants (admin)', [
+                'event_id' => $eventId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch event participants: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

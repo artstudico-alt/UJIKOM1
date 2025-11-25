@@ -26,12 +26,18 @@ class Certificate extends Model
         'verification_notes',
         'download_count',
         'status',
+        'generated_at',
+        'downloaded_at',
     ];
 
     protected $casts = [
+        'event_date' => 'date',
         'issued_at' => 'datetime',
         'verified_at' => 'datetime',
+        'generated_at' => 'datetime',
+        'downloaded_at' => 'datetime',
         'download_count' => 'integer',
+        'file_size' => 'integer',
     ];
 
     // Relationships
@@ -48,5 +54,49 @@ class Certificate extends Model
     public function eventParticipant()
     {
         return $this->belongsTo(EventParticipant::class, 'event_participant_id');
+    }
+
+    /**
+     * Scope untuk filter certificate berdasarkan user
+     */
+    public function scopeForUser($query, $userId)
+    {
+        return $query->where('participant_id', $userId);
+    }
+
+    /**
+     * Scope untuk filter certificate berdasarkan event
+     */
+    public function scopeForEvent($query, $eventId)
+    {
+        return $query->where('event_id', $eventId);
+    }
+
+    /**
+     * Scope untuk filter certificate yang sudah di-generate
+     */
+    public function scopeGenerated($query)
+    {
+        return $query->where('status', 'generated');
+    }
+
+    /**
+     * Check if certificate is ready to download
+     */
+    public function isReadyToDownload(): bool
+    {
+        return $this->status === 'generated' && !empty($this->file_path);
+    }
+
+    /**
+     * Mark certificate as downloaded
+     */
+    public function markAsDownloaded()
+    {
+        $this->update([
+            'status' => 'downloaded',
+            'downloaded_at' => now(),
+            'download_count' => $this->download_count + 1
+        ]);
     }
 }

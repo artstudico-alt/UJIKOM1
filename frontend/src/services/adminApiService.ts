@@ -368,7 +368,9 @@ class AdminApiService {
   }> {
     try {
       const response = await apiClient.get('/admin/dashboard/charts');
-      return response.data.data;
+      console.log('📊 Chart API Response:', response.data);
+      // Backend returns data directly (no nested .data property)
+      return response.data;
     } catch (error: any) {
       console.error('Failed to fetch chart data:', error);
       // Return default data if API fails

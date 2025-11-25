@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizerController;
 use App\Http\Controllers\Api\OrganizerEventController;
 use App\Http\Controllers\Api\AdminEventApprovalController;
+use App\Http\Controllers\Api\CertificateTemplateController;
 use App\Http\Controllers\PaymentController;
 
 // Public Routes
@@ -81,6 +82,10 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     Route::get('/my-events', [EventController::class, 'myEvents']);
     Route::get('/my-certificates', [EventController::class, 'myCertificates']);
 
+    // Certificate Template System - Participant Routes
+    Route::get('/certificates/my', [CertificateTemplateController::class, 'getMyCertificates']);
+    Route::get('/certificates/{certificateId}/download-pdf', [CertificateTemplateController::class, 'downloadCertificate']);
+
     // User Management (Admin only)
     Route::middleware(['admin'])->group(function () {
         Route::get('/users', [UserController::class, 'index']);
@@ -94,19 +99,23 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
         Route::get('/admin/dashboard/stats', [AdminEventApprovalController::class, 'getDashboardStats']);
         Route::get('/admin/dashboard/charts', [AdminEventApprovalController::class, 'getChartData']);
 
+        // Admin Participants Management
+        Route::get('/admin/participants', [AdminEventApprovalController::class, 'getAllParticipants']);
+        Route::get('/admin/events/{eventId}/participants', [AdminEventApprovalController::class, 'getEventParticipants']);
+
         // Export Data
         Route::get('/admin/export/events', [App\Http\Controllers\Admin\DashboardController::class, 'exportEvents']);
         Route::get('/admin/export/participants', [App\Http\Controllers\Admin\DashboardController::class, 'exportParticipants']);
         Route::get('/admin/export/users', [App\Http\Controllers\Admin\DashboardController::class, 'exportUsers']);
 
 
-        // Admin certificate management routes
-        Route::get('/admin/events/certificates', [CertificateController::class, 'getEventsWithCertificates']);
-        Route::get('/admin/events/{eventId}/certificates', [CertificateController::class, 'getEventCertificates']);
-        Route::put('/admin/events/{eventId}/certificate-settings', [CertificateController::class, 'updateEventCertificateSettings']);
-        Route::post('/admin/events/{eventId}/certificates/generate', [CertificateController::class, 'generateCertificate']);
-        Route::post('/admin/events/{eventId}/certificates/generate-all', [CertificateController::class, 'generateAllCertificates']);
-        Route::get('/admin/certificates/{certificateId}/download', [CertificateController::class, 'downloadCertificate']);
+        // Admin certificate management routes (Template-based System)
+        Route::post('/admin/events/{eventId}/certificate/upload-template', [CertificateTemplateController::class, 'uploadTemplate']);
+        Route::put('/admin/events/{eventId}/certificate/text-settings', [CertificateTemplateController::class, 'updateTextSettings']);
+        Route::get('/admin/events/{eventId}/certificate/preview', [CertificateTemplateController::class, 'previewTemplate']);
+        Route::post('/admin/events/{eventId}/certificate/generate', [CertificateTemplateController::class, 'generateForEvent']);
+        Route::get('/admin/certificates/all', [CertificateTemplateController::class, 'getAllCertificates']);
+        Route::get('/admin/certificates/{certificateId}/download', [CertificateTemplateController::class, 'downloadCertificate']);
 
         // Admin Event Management Routes
         Route::get('/admin/events', [AdminEventApprovalController::class, 'getAllEvents']);
@@ -202,6 +211,12 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
 
         // Payment Management
         Route::get('/payments', [PaymentController::class, 'getOrganizerPayments']);
+
+        // Certificate Template System - EO Routes
+        Route::post('/events/{eventId}/certificate/upload-template', [CertificateTemplateController::class, 'uploadTemplate']);
+        Route::put('/events/{eventId}/certificate/text-settings', [CertificateTemplateController::class, 'updateTextSettings']);
+        Route::get('/events/{eventId}/certificate/preview', [CertificateTemplateController::class, 'previewTemplate']);
+        Route::post('/events/{eventId}/certificate/generate', [CertificateTemplateController::class, 'generateForEvent']);
     });
 });
 
